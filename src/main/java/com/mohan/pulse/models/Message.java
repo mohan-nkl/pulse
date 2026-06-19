@@ -27,10 +27,11 @@ public class Message {
     private String conversationId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sender_id")
+    @JoinColumn(name = "sender_id", nullable = false)
     private User sender;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private MessageType type;
 
     @Column(columnDefinition = "text")
@@ -43,9 +44,11 @@ public class Message {
     private Message replyTo;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private MessageStatus status;
 
     private boolean deleted;
 
+    @Column(nullable = false)
     private Instant createdAt;
 }
