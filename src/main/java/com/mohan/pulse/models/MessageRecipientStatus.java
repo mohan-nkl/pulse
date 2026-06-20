@@ -5,7 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 
@@ -14,27 +14,28 @@ import java.time.Instant;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "reactions",
+@Table(name = "message_recipient_status",
         uniqueConstraints = @UniqueConstraint(
                 columnNames = {"message_id", "user_id"}
         ))
-public class Reaction {
+public class MessageRecipientStatus {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "message_id")
+    @JoinColumn(name = "message_id", nullable = false)
     private Message message;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    private User user;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User recipient;
 
-    private String emoji;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private MessageStatus status;
 
-    @CreationTimestamp
-    @Column(updatable = false)
-    private Instant createdAt;
+    @UpdateTimestamp
+    private Instant updatedAt;
 }

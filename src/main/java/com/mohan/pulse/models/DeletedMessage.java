@@ -11,29 +11,27 @@ import java.time.Instant;
 
 @Getter
 @Setter
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
 @Entity
-@Table(name = "contacts",
+@Table(name = "deleted_messages",
         uniqueConstraints = @UniqueConstraint(
-                columnNames = {"owner_id", "contact_id"}))
-public class Contact {
+                columnNames = {"message_id", "user_id"}
+        ))
+public class DeletedMessage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id", nullable = false)
-    private User owner;
+    @JoinColumn(name = "message_id", nullable = false)
+    private Message message;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "contact_id", nullable = false)
-    private User contact;
-
-    private String alias;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @CreationTimestamp
-    @Column(updatable = false)
-    private Instant addedAt;
+    private Instant deletedAt;
 }

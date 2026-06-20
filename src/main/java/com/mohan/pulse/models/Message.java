@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 
@@ -15,8 +17,8 @@ import java.time.Instant;
 @Entity
 @Table(name = "messages",
         indexes = @Index(
-             name = "idx_convo_time",
-            columnList = "conversation_id, created_at"
+                name = "idx_convo_time",
+                columnList = "conversation_id, created_at"
         ))
 public class Message {
 
@@ -24,7 +26,12 @@ public class Message {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "conversation_id", nullable = false)
     private String conversationId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ConversationType conversationType;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sender_id", nullable = false)
@@ -43,12 +50,14 @@ public class Message {
     @JoinColumn(name = "reply_to_id")
     private Message replyTo;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private MessageStatus status;
+    private boolean edited;
 
-    private boolean deleted;
+    private boolean deleted;   // delete for everyone
 
-    @Column(nullable = false)
+    @CreationTimestamp
+    @Column(nullable = false, updatable = false)
     private Instant createdAt;
+
+    @UpdateTimestamp
+    private Instant updatedAt;
 }
