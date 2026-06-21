@@ -1,6 +1,7 @@
 package com.mohan.pulse.configs;
 
 import com.mohan.pulse.security.JwtAuthFilter;
+import com.mohan.pulse.security.JwtAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.Customizer;
 import org.springframework.context.annotation.Bean;
@@ -20,13 +21,17 @@ public class SecurityConfig {
     private static final String[] PUBLIC_ENDPOINTS = {"/api/auth/**", "/ws/**"};
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                   JwtAuthFilter jwtAuthFilter,
+                                                   JwtAuthenticationEntryPoint authenticationEntryPoint) throws Exception {
 
         http
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
