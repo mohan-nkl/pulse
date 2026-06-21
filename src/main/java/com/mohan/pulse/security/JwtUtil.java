@@ -34,7 +34,7 @@ public class JwtUtil {
                 .subject(String.valueOf(userId))
                 .issuedAt(issuedAt)
                 .expiration(expiresAt)
-                .signingWith(signingKey)
+                .signWith(signingKey)
                 .compact();
     }
 
