@@ -1,12 +1,15 @@
 package com.mohan.pulse.services;
 
 import com.mohan.pulse.dtos.ChatMessageResponse;
+import com.mohan.pulse.dtos.SendGroupMessageRequest;
 import com.mohan.pulse.dtos.SendMessageRequest;
 import com.mohan.pulse.exceptions.ApiException;
 import com.mohan.pulse.models.ConversationType;
+import com.mohan.pulse.models.GroupMember;
 import com.mohan.pulse.models.Message;
 import com.mohan.pulse.models.MessageType;
 import com.mohan.pulse.models.User;
+import com.mohan.pulse.repositories.GroupMemberRepository;
 import com.mohan.pulse.repositories.MessageRepository;
 import com.mohan.pulse.repositories.UserRepository;
 import com.mohan.pulse.utils.ConversationUtil;
@@ -14,7 +17,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -24,11 +29,12 @@ public class ChatService {
 
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
+    private final GroupMemberRepository groupMemberRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     public ChatMessageResponse sendDirectMessage(Long senderId, SendMessageRequest request) {
 
-        validate(request);
+        validateDirect(request);
 
         User sender = findUser(senderId, "Sender not found");
         User receiver = findUser(request.getReceiverId(), "Receiver not found");
@@ -56,15 +62,64 @@ public class ChatService {
                 saved.getContent(),
                 saved.getCreatedAt());
 
+        // Deliver to the receiver, and echo to the sender (so their UI gets the real id + time).
         messagingTemplate.convertAndSendToUser(receiver.getId().toString(), USER_QUEUE, response);
         messagingTemplate.convertAndSendToUser(sender.getId().toString(), USER_QUEUE, response);
 
         return response;
     }
 
-    private void validate(SendMessageRequest request) {
+    @Transactional
+    public ChatMessageResponse sendGroupMessage(Long senderId, SendGroupMessageRequest request) {
+
+        validateGroup(request);
+
+        User sender = findUser(senderId, "Sender not found");
+
+        // Only a member may post into the group.
+        if (!groupMemberRepository.existsByGroupIdAndUserId(request.getGroupId(), senderId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this group.");
+        }
+
+        String conversationId = ConversationUtil.groupConversationId(request.getGroupId());
+
+        Message message = new Message();
+        message.setConversationId(conversationId);
+        message.setConversationType(ConversationType.GROUP);
+        message.setSender(sender);
+        message.setType(MessageType.TEXT);
+        message.setContent(request.getContent());
+
+        Message saved = messageRepository.save(message);
+
+        ChatMessageResponse response = new ChatMessageResponse(
+                saved.getId(),
+                saved.getConversationId(),
+                sender.getId(),
+                saved.getContent(),
+                saved.getCreatedAt());
+
+        List<GroupMember> members = groupMemberRepository.findByGroupId(request.getGroupId());
+        for (GroupMember member : members) {
+            messagingTemplate.convertAndSendToUser(
+                    member.getUser().getId().toString(), USER_QUEUE, response);
+        }
+
+        return response;
+    }
+
+    private void validateDirect(SendMessageRequest request) {
         if (request.getReceiverId() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Receiver id is required");
+        }
+        if (request.getContent() == null || request.getContent().isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Message content must not be empty");
+        }
+    }
+
+    private void validateGroup(SendGroupMessageRequest request) {
+        if (request.getGroupId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Group id is required");
         }
         if (request.getContent() == null || request.getContent().isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Message content must not be empty");
