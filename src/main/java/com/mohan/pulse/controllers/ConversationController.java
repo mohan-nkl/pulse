@@ -22,8 +22,12 @@ public class ConversationController {
     @GetMapping("/{otherUserId}")
     public ApiResponse<List<MessageResponse>> getConversation(@PathVariable Long otherUserId) {
         Long currentUserId = SecurityUtil.currentUserId();
-        List<MessageResponse> history =
-                conversationService.getDirectConversation(currentUserId, otherUserId);
-        return ApiResponse.ok(history);
+        return ApiResponse.ok(conversationService.getDirectConversation(currentUserId, otherUserId));
+    }
+
+    @GetMapping("/group/{groupId}")
+    public ApiResponse<List<MessageResponse>> getGroupConversation(@PathVariable Long groupId) {
+        Long currentUserId = SecurityUtil.currentUserId();
+        return ApiResponse.ok(conversationService.getGroupConversation(currentUserId, groupId));
     }
 }
