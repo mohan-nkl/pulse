@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     listContacts, searchContacts, addContact, addContactByUserId,
@@ -27,6 +27,8 @@ export default function Contacts() {
     const [editLoading, setEditLoading] = useState(false);
 
     // Sync panel
+    const isFirstRender = useRef(true);
+
     const [showSync, setShowSync] = useState(false);
     const [syncInput, setSyncInput] = useState("");
     const [syncResults, setSyncResults] = useState([]);
@@ -48,6 +50,10 @@ export default function Contacts() {
     useEffect(() => { load(); }, [load]);
 
     useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
         const t = setTimeout(() => load(query), 300);
         return () => clearTimeout(t);
     }, [query, load]);
@@ -77,6 +83,7 @@ export default function Contacts() {
 
     const handleRemove = async (id) => {
         if (!window.confirm("Remove this contact?")) return;
+        setError("");
         try {
             await removeContact(id);
             setContacts((prev) => prev.filter((c) => c.id !== id));
@@ -92,6 +99,7 @@ export default function Contacts() {
     };
 
     const handleEditSave = async (id) => {
+        setError("");
         setEditLoading(true);
         try {
             const updated = await updateAlias(id, editAlias.trim() || null);
@@ -127,6 +135,7 @@ export default function Contacts() {
     };
 
     const handleAddFromSync = async (user) => {
+        setError("");
         try {
             const newContact = await addContactByUserId(user.userId);
             setContacts((prev) => [newContact, ...prev]);
@@ -144,6 +153,7 @@ export default function Contacts() {
     };
 
     const handleRemoveFromSync = async (user) => {
+        setError("");
         try {
             await removeContact(user.contactRecordId);
             setContacts((prev) => prev.filter((c) => c.id !== user.contactRecordId));

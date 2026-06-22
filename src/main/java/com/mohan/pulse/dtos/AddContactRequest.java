@@ -7,11 +7,11 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@NoArgsConstructor                                                                                                                                                               
-  public class AddContactRequest {                                                                                                                                                 
-                                                                                                                                                                                   
-      @NotBlank(message = "Phone number is required.")                                                                                                                             
-      private String phone;                                                                                                                                                        
-                                                                                                                                                                                   
-      private String alias;                                                                                                                                                        
-  }  
+@NoArgsConstructor
+public class AddContactRequest {
+
+    @NotBlank(message = "Phone number is required.")
+    private String phone;
+
+    private String alias;
+}

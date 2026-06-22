@@ -52,7 +52,7 @@ export default function ChatPage() {
 
     const loadContacts = async () => {
         try {
-            const response = await client.get("/api/contacts");
+            const response = await client.get("/api/v1/contacts");
             setContacts(response.data.data);
         } catch {
             // Leave the list empty on failure; a fuller app would surface an error.
@@ -62,10 +62,10 @@ export default function ChatPage() {
     // Open a contact's conversation and load its history.
     const openConversation = async (contact) => {
         setSelectedContact(contact);
-        openConversationIdRef.current = dmConversationId(currentUserId, contact.userId);
+        openConversationIdRef.current = dmConversationId(currentUserId, contact.contactId);
 
         try {
-            const response = await client.get(`/api/conversations/${contact.userId}`);
+            const response = await client.get(`/api/conversations/${contact.contactId}`);
             setMessages(response.data.data);
         } catch {
             setMessages([]);
@@ -79,7 +79,7 @@ export default function ChatPage() {
         }
         // Just publish — the backend echoes it back to us over the subscription,
         // so we don't append it manually here (that would double it).
-        sendMessage(selectedContact.userId, text);
+        sendMessage(selectedContact.contactId, text);
         setDraft("");
     };
 
@@ -90,14 +90,14 @@ export default function ChatPage() {
                 {contacts.length === 0 && <p style={styles.empty}>No contacts yet.</p>}
                 {contacts.map((contact) => (
                     <button
-                        key={contact.userId}
+                        key={contact.contactId}
                         style={{
                             ...styles.contact,
-                            ...(selectedContact?.userId === contact.userId ? styles.contactActive : {}),
+                            ...(selectedContact?.contactId === contact.contactId ? styles.contactActive : {}),
                         }}
                         onClick={() => openConversation(contact)}
                     >
-                        {contact.name || "Unknown"}
+                        {contact.alias || contact.name || "Unknown"}
                     </button>
                 ))}
             </aside>
@@ -107,7 +107,7 @@ export default function ChatPage() {
                     <div style={styles.placeholder}>Select a contact to start chatting.</div>
                 ) : (
                     <>
-                        <header style={styles.chatHeader}>{selectedContact.name}</header>
+                        <header style={styles.chatHeader}>{selectedContact.alias || selectedContact.name}</header>
 
                         <div style={styles.messages}>
                             {messages.map((message) => {
