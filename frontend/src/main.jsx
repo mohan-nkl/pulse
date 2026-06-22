@@ -10,6 +10,7 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import ViewProfile from "./pages/ViewProfile";
+import Contacts from "./pages/Contacts";
 
 import "./index.css";
 
@@ -46,6 +47,14 @@ createRoot(document.getElementById("root")).render(
                         element={
                             <ProtectedRoute>
                                 <ViewProfile />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/contacts"
+                        element={
+                            <ProtectedRoute>
+                                <Contacts />
                             </ProtectedRoute>
                         }
                     />
