@@ -1,10 +1,12 @@
-package com.mohan.pulse.dtos;                                                                                                                                                    
-                                                                                                                                                                                   
-  import lombok.Getter;                                                                                                                                                            
-  import lombok.NoArgsConstructor;                                                                                                                                                 
-                                                                                                                                                                                   
-  @Getter                                                                                                                                                                          
-  @NoArgsConstructor                                                                                                                                                               
-  public class UpdateAliasRequest {                                                                                                                                                
-      private String alias;                                                                                                                                                        
-  }         
+package com.mohan.pulse.dtos;
+
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@NoArgsConstructor
+public class UpdateAliasRequest {
+    private String alias;
+}
