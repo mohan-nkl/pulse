@@ -18,7 +18,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SecurityConfig {
 
-    private static final String[] PUBLIC_ENDPOINTS = {"/api/auth/**", "/ws/**"};
+    private static final String[] PUBLIC_ENDPOINTS = {"/api/auth/**", "/ws/**", "/avatars/**"};
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
