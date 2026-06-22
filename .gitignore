@@ -33,5 +33,9 @@ build/
 .vscode/
 
 .env
+
+# Runtime-uploaded files (avatars, etc.)
 uploads/
+
+# Vite cache
 frontend/.vite/
