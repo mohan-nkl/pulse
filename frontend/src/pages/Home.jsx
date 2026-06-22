@@ -6,8 +6,8 @@ export default function Home() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        await logout();
         navigate("/login");
     };
 
@@ -15,6 +15,10 @@ export default function Home() {
         <div style={styles.container}>
             <h1 style={styles.title}>Welcome to Pulse, {user?.name}</h1>
             <p style={styles.subtitle}>You are logged in as {user?.phone}.</p>
+
+            <button style={styles.profileBtn} onClick={() => navigate("/profile")}>
+                View Profile
+            </button>
 
             <button style={styles.button} onClick={handleLogout}>
                 Log out
@@ -34,8 +38,15 @@ const styles = {
     },
     title: { fontSize: "24px" },
     subtitle: { fontSize: "15px", color: "#555" },
+    profileBtn: {
+        padding: "10px 20px",
+        fontSize: "15px",
+        border: "1px solid #ccc",
+        borderRadius: "6px",
+        cursor: "pointer",
+        background: "#fff",
+    },
     button: {
-        marginTop: "16px",
         padding: "10px 20px",
         fontSize: "15px",
         border: "none",
