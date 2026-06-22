@@ -8,6 +8,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
+import Profile from "./pages/Profile";
+import ViewProfile from "./pages/ViewProfile";
 
 import "./index.css";
 
@@ -28,6 +30,22 @@ createRoot(document.getElementById("root")).render(
                         element={
                             <ProtectedRoute>
                                 <Home />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/profile"
+                        element={
+                            <ProtectedRoute>
+                                <Profile />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/users/:userId/profile"
+                        element={
+                            <ProtectedRoute>
+                                <ViewProfile />
                             </ProtectedRoute>
                         }
                     />
