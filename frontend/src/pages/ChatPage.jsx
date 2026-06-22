@@ -42,19 +42,15 @@ export default function ChatPage() {
     const [showNewGroup, setShowNewGroup] = useState(false);
     const [showMembers, setShowMembers] = useState(false);
 
-    // The conversation currently on screen, in a ref so the WebSocket handler
-    // (registered once on mount) always sees the latest value, not a stale snapshot.
     const openConversationIdRef = useRef(null);
     const bottomRef = useRef(null);
 
-    // Load lists and open the live connection on mount.
     useEffect(() => {
         loadContacts();
         loadGroups();
 
         connectWebSocket((message) => {
             // Append only if the message belongs to the conversation currently open.
-            // Group messages carry conversationId "group:42"; DMs carry "dm:7:12".
             if (message.conversationId === openConversationIdRef.current) {
                 setMessages((previous) => [...previous, message]);
             }
@@ -64,15 +60,22 @@ export default function ChatPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Keep the view scrolled to the newest message.
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
     const loadContacts = async () => {
         try {
-            const response = await client.get("/api/contacts");
-            setContacts(response.data.data);
+            const response = await client.get("/api/v1/contacts");
+            // The contacts API returns each row as { contactId, name, alias, ... }.
+            // The chat UI identifies the other person by userId, so we map
+            // contactId -> userId (and show the alias as the name when one is set).
+            const mapped = (response.data.data || []).map((c) => ({
+                userId: c.contactId,
+                name: c.alias || c.name,
+                avatarUrl: c.avatarUrl,
+            }));
+            setContacts(mapped);
         } catch {
             // Leave empty on failure.
         }
@@ -86,7 +89,6 @@ export default function ChatPage() {
         }
     };
 
-    // Open a 1-to-1 conversation and load its history.
     const openDirect = async (contact) => {
         setSelected({ type: "dm", userId: contact.userId, name: contact.name });
         openConversationIdRef.current = dmConversationId(currentUserId, contact.userId);
@@ -101,7 +103,6 @@ export default function ChatPage() {
         }
     };
 
-    // Open a group: load history + members (members give us names for the bubbles).
     const openGroup = async (group) => {
         setSelected({ type: "group", ...group });
         openConversationIdRef.current = groupConversationId(group.id);
@@ -131,8 +132,6 @@ export default function ChatPage() {
             return;
         }
 
-        // Just publish — the backend echoes the message back to us over the
-        // subscription (to all members for a group), so we don't append it manually.
         if (selected.type === "dm") {
             sendMessage(selected.userId, text);
         } else {
@@ -141,14 +140,12 @@ export default function ChatPage() {
         setDraft("");
     };
 
-    // After creating a group: add it to the list and open it.
     const handleGroupCreated = (group) => {
         setGroups((previous) => [group, ...previous]);
         setShowNewGroup(false);
         openGroup(group);
     };
 
-    // After leaving the open group: drop it and clear the view.
     const handleLeftGroup = () => {
         setGroups((previous) => previous.filter((g) => g.id !== selected.id));
         setSelected(null);

@@ -8,6 +8,7 @@ public class PulseApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(PulseApplication.class, args);
-	}
 
+
+	}
 }
