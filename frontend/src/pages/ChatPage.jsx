@@ -6,7 +6,7 @@ import {
     sendMessage,
     sendGroupMessage,
     disconnectWebSocket,
-} from "../services/websocket";
+} from "../services/WebSocket";
 import { listGroups, getGroupHistory, getGroupMembers } from "../api/groupApi";
 import NewGroupModal from "../components/NewGroupModal";
 import GroupMembersPanel from "../components/GroupMembersPanel";
