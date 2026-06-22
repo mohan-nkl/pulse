@@ -12,7 +12,8 @@ import java.util.List;
 public class CorsConfig {
 
     private static final List<String> ALLOWED_ORIGINS = List.of(
-            "http://localhost:5173"  // React (Vite) dev server
+            "http://localhost:5173",
+            "http://localhost:5174"
     );
 
     private static final List<String> ALLOWED_METHODS = List.of(

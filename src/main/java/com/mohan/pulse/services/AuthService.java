@@ -11,6 +11,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+
 @Service
 public class AuthService {
 
@@ -54,6 +56,9 @@ public class AuthService {
         if (!passwordMatches) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Invalid phone or password");
         }
+
+        user.setLastSeen(Instant.now());
+        userRepository.save(user);
 
         return buildAuthResponse(user);
     }
