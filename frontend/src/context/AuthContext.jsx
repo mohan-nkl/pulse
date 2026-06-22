@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from "react";
 import { signup as signupApi, login as loginApi } from "../api/authApi.js";
-import { saveToken, clearToken } from "../api/client.js";
+import client, { saveToken, clearToken } from "../api/client.js";
 
 const USER_KEY = "pulse_user";
 
@@ -37,10 +37,23 @@ export function AuthProvider({ children }) {
         handleAuthSuccess(data);
     };
 
-    const logout = () => {
+    const logout = async () => {
+        try {
+            await client.post("/api/v1/auth/logout");
+        } catch (_) {
+            // best-effort — still clear local session even if request fails
+        }
         clearToken();
         localStorage.removeItem(USER_KEY);
         setUser(null);
+    };
+
+    const updateUser = (changes) => {
+        setUser((prev) => {
+            const updated = { ...prev, ...changes };
+            localStorage.setItem(USER_KEY, JSON.stringify(updated));
+            return updated;
+        });
     };
 
     const value = {
@@ -49,6 +62,7 @@ export function AuthProvider({ children }) {
         signup,
         login,
         logout,
+        updateUser,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
