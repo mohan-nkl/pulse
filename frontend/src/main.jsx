@@ -10,6 +10,7 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import ViewProfile from "./pages/ViewProfile";
+import ChatPage from "./pages/ChatPage";
 
 import "./index.css";
 
@@ -30,6 +31,14 @@ createRoot(document.getElementById("root")).render(
                         element={
                             <ProtectedRoute>
                                 <Home />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/chat"
+                        element={
+                            <ProtectedRoute>
+                                <ChatPage />
                             </ProtectedRoute>
                         }
                     />

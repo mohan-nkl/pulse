@@ -1,5 +1,7 @@
 package com.mohan.pulse.configs;
 
+import com.mohan.pulse.security.WebSocketAuthInterceptor;
+import com.mohan.pulse.security.WebSocketHandshakeHandler;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
@@ -16,10 +18,18 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             "http://localhost:5173"
     };
 
+    private final WebSocketAuthInterceptor authInterceptor;
+
+    public WebSocketConfig(WebSocketAuthInterceptor authInterceptor) {
+        this.authInterceptor = authInterceptor;
+    }
+
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry
                 .addEndpoint(WEBSOCKET_ENDPOINT)
+                .addInterceptors(authInterceptor)
+                .setHandshakeHandler(new WebSocketHandshakeHandler())
                 .setAllowedOrigins(ALLOWED_ORIGINS)
                 .withSockJS();
     }
