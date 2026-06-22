@@ -45,6 +45,7 @@ const styles = {
         borderRadius: "6px",
         cursor: "pointer",
         background: "#fff",
+        color: "#111",
     },
     button: {
         padding: "10px 20px",
@@ -52,5 +53,7 @@ const styles = {
         border: "none",
         borderRadius: "6px",
         cursor: "pointer",
+        background: "#111",
+        color: "#fff",
     },
 };
