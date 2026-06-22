@@ -20,6 +20,10 @@ export default function Home() {
                 View Profile
             </button>
 
+            <button style={styles.chatBtn} onClick={() => navigate("/chat")}>
+                Open Chat
+            </button>
+
             <button style={styles.button} onClick={handleLogout}>
                 Log out
             </button>
@@ -45,7 +49,16 @@ const styles = {
         borderRadius: "6px",
         cursor: "pointer",
         background: "#fff",
-        color: "#111",
+        color: "#111",        // dark label so it's visible on the white button
+    },
+    chatBtn: {
+        padding: "10px 20px",
+        fontSize: "15px",
+        border: "none",
+        borderRadius: "6px",
+        cursor: "pointer",
+        background: "#25d366",  // WhatsApp-ish green
+        color: "#fff",
     },
     button: {
         padding: "10px 20px",
@@ -53,7 +66,5 @@ const styles = {
         border: "none",
         borderRadius: "6px",
         cursor: "pointer",
-        background: "#111",
-        color: "#fff",
     },
 };
