@@ -5,8 +5,10 @@ import {
     connectWebSocket,
     sendMessage,
     sendGroupMessage,
+    sendDelivered,
+    sendRead,
     disconnectWebSocket,
-} from "../services/WebSocket";
+} from "../services/websocket";
 import { listGroups, getGroupHistory, getGroupMembers } from "../api/groupApi";
 import NewGroupModal from "../components/NewGroupModal";
 import GroupMembersPanel from "../components/GroupMembersPanel";
@@ -20,6 +22,25 @@ function dmConversationId(a, b) {
 }
 function groupConversationId(groupId) {
     return `group:${groupId}`;
+}
+
+// "2026-06-23T09:49:00Z" -> "9:49 AM"
+function formatTime(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+// The tick(s) shown on MY messages: ✓ sent, ✓✓ delivered, ✓✓ blue read.
+function Ticks({ message }) {
+    const status = message.status || "SENT";
+    const isRead = status === "READ";
+    const isDelivered = status === "DELIVERED" || isRead;
+    const symbol = isDelivered ? "✓✓" : "✓";
+    // Bright sky-blue when read; light-grey otherwise.
+    const color = isRead ? "#4fc3f7" : "#a8c5bd";
+    return <span style={{ color, fontWeight: 700 }}>{symbol}</span>;
 }
 
 export default function ChatPage() {
@@ -44,17 +65,56 @@ export default function ChatPage() {
 
     const openConversationIdRef = useRef(null);
     const bottomRef = useRef(null);
+    // Always-fresh copy of my id, so the WebSocket callback (created once at
+    // mount) never reads a stale/undefined value.
+    const currentUserIdRef = useRef(null);
+
+    // Keep the id ref in sync with the logged-in user.
+    useEffect(() => {
+        currentUserIdRef.current = currentUserId;
+    }, [currentUserId]);
 
     useEffect(() => {
         loadContacts();
         loadGroups();
 
-        connectWebSocket((message) => {
-            // Append only if the message belongs to the conversation currently open.
-            if (message.conversationId === openConversationIdRef.current) {
-                setMessages((previous) => [...previous, message]);
+        connectWebSocket(
+            (message) => {
+                const mine = message.senderId === currentUserIdRef.current;
+
+                // My OWN echoed message: just show it, never acknowledge it.
+                if (mine) {
+                    if (message.conversationId === openConversationIdRef.current) {
+                        setMessages((previous) => [...previous, message]);
+                    }
+                    return;
+                }
+
+                // Someone else's message.
+                if (message.conversationId === openConversationIdRef.current) {
+                    setMessages((previous) => [...previous, message]);
+                    sendRead(message.conversationId);     // I'm looking at it
+                } else {
+                    sendDelivered(message.conversationId); // arrived, chat not open
+                }
+            },
+            (update) => {
+                // A tick advanced on one of MY messages — update just that bubble.
+                setMessages((previous) =>
+                    previous.map((m) =>
+                        m.id === update.messageId
+                            ? {
+                                ...m,
+                                status: update.status,
+                                deliveredCount: update.deliveredCount,
+                                readCount: update.readCount,
+                                totalRecipients: update.totalRecipients,
+                            }
+                            : m
+                    )
+                );
             }
-        });
+        );
 
         return () => disconnectWebSocket();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,8 +150,9 @@ export default function ChatPage() {
     };
 
     const openDirect = async (contact) => {
+        const convId = dmConversationId(currentUserId, contact.userId);
         setSelected({ type: "dm", userId: contact.userId, name: contact.name });
-        openConversationIdRef.current = dmConversationId(currentUserId, contact.userId);
+        openConversationIdRef.current = convId;
         setShowMembers(false);
         setMemberNames({});
 
@@ -101,11 +162,15 @@ export default function ChatPage() {
         } catch {
             setMessages([]);
         }
+
+        // Opening a chat means I've read everything in it.
+        sendRead(convId);
     };
 
     const openGroup = async (group) => {
+        const convId = groupConversationId(group.id);
         setSelected({ type: "group", ...group });
-        openConversationIdRef.current = groupConversationId(group.id);
+        openConversationIdRef.current = convId;
         setShowMembers(false);
 
         try {
@@ -124,6 +189,9 @@ export default function ChatPage() {
             setMessages([]);
             setMemberNames({});
         }
+
+        // Opening the group means I've read everything in it.
+        sendRead(convId);
     };
 
     const handleSend = () => {
@@ -230,7 +298,15 @@ export default function ChatPage() {
                                                 {memberNames[message.senderId] || "Unknown"}
                                             </div>
                                         )}
-                                        {message.content}
+
+                                        <span style={styles.text}>{message.content}</span>
+
+                                        <span style={styles.meta}>
+                                            <span style={styles.time}>
+                                                {formatTime(message.createdAt)}
+                                            </span>
+                                            {mine && <Ticks message={message} />}
+                                        </span>
                                     </div>
                                 );
                             })}
@@ -354,10 +430,33 @@ const styles = {
         flexDirection: "column",
         gap: "8px",
     },
-    bubble: { maxWidth: "60%", padding: "8px 12px", borderRadius: "10px", fontSize: "14px" },
+    // Column bubble: text block, then a meta row pinned to the right at the
+    // bottom. The meta's negative top margin lets it tuck up next to the last
+    // line of short messages so the bubble stays compact.
+    bubble: {
+        maxWidth: "65%",
+        padding: "6px 10px 5px 12px",
+        borderRadius: "12px",
+        fontSize: "14px",
+        lineHeight: 1.4,
+        display: "flex",
+        flexDirection: "column",
+    },
     bubbleMine: { alignSelf: "flex-end", background: "#005c4b", color: "#e9edef" },
     bubbleTheirs: { alignSelf: "flex-start", background: "#202c33", color: "#e9edef" },
     sender: { fontSize: "12px", color: "#53bdeb", marginBottom: "2px", fontWeight: 600 },
+    text: { whiteSpace: "pre-wrap", wordBreak: "break-word", textAlign: "left" },
+    // Bottom-right footer. alignSelf:flex-end pushes it to the right edge of
+    // the bubble; it always sits BELOW the text, in the corner.
+    meta: {
+        alignSelf: "flex-end",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "4px",
+        marginTop: "2px",
+        whiteSpace: "nowrap",
+    },
+    time: { fontSize: "11px", color: "#9fc1b8" },
     composer: {
         display: "flex",
         gap: "8px",
