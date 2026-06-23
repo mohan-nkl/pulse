@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
+import HomeButton from "../components/HomeButton";
 import { getMyProfile, updateProfile, uploadAvatar } from "../api/profileApi";
 
 export default function Profile() {
@@ -75,6 +76,7 @@ export default function Profile() {
     return (
         <div style={styles.container}>
             <div style={styles.card}>
+                <HomeButton style={{ marginBottom: "16px" }} />
                 <h1 style={styles.title}>My Profile</h1>
 
                 {error && <div style={styles.error}>{error}</div>}
