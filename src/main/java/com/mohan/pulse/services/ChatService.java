@@ -31,7 +31,9 @@ public class ChatService {
     private final MessageRepository messageRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final MessageStatusService messageStatusService;   // NEW: the ticks engine
 
+    @Transactional
     public ChatMessageResponse sendDirectMessage(Long senderId, SendMessageRequest request) {
 
         validateDirect(request);
@@ -55,6 +57,8 @@ public class ChatService {
 
         Message saved = messageRepository.save(message);
 
+        messageStatusService.createRecipientStatuses(saved, List.of(receiver.getId()));
+
         ChatMessageResponse response = new ChatMessageResponse(
                 saved.getId(),
                 saved.getConversationId(),
@@ -62,7 +66,6 @@ public class ChatService {
                 saved.getContent(),
                 saved.getCreatedAt());
 
-        // Deliver to the receiver, and echo to the sender (so their UI gets the real id + time).
         messagingTemplate.convertAndSendToUser(receiver.getId().toString(), USER_QUEUE, response);
         messagingTemplate.convertAndSendToUser(sender.getId().toString(), USER_QUEUE, response);
 
@@ -76,7 +79,6 @@ public class ChatService {
 
         User sender = findUser(senderId, "Sender not found");
 
-        // Only a member may post into the group.
         if (!groupMemberRepository.existsByGroupIdAndUserId(request.getGroupId(), senderId)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this group.");
         }
@@ -92,6 +94,14 @@ public class ChatService {
 
         Message saved = messageRepository.save(message);
 
+        List<GroupMember> members = groupMemberRepository.findByGroupId(request.getGroupId());
+
+        List<Long> recipientIds = members.stream()
+                .map(member -> member.getUser().getId())
+                .filter(userId -> !userId.equals(senderId))
+                .toList();
+        messageStatusService.createRecipientStatuses(saved, recipientIds);
+
         ChatMessageResponse response = new ChatMessageResponse(
                 saved.getId(),
                 saved.getConversationId(),
@@ -99,7 +109,6 @@ public class ChatService {
                 saved.getContent(),
                 saved.getCreatedAt());
 
-        List<GroupMember> members = groupMemberRepository.findByGroupId(request.getGroupId());
         for (GroupMember member : members) {
             messagingTemplate.convertAndSendToUser(
                     member.getUser().getId().toString(), USER_QUEUE, response);
