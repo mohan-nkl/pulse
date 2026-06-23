@@ -8,7 +8,7 @@ import {
     sendDelivered,
     sendRead,
     disconnectWebSocket,
-} from "../services/websocket";
+} from "../services/WebSocket.js";
 import { listGroups, getGroupHistory, getGroupMembers } from "../api/groupApi";
 import NewGroupModal from "../components/NewGroupModal";
 import GroupMembersPanel from "../components/GroupMembersPanel";
