@@ -18,7 +18,14 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SecurityConfig {
 
-    private static final String[] PUBLIC_ENDPOINTS = {"/api/auth/**", "/ws/**", "/avatars/**"};
+    // /media/** is public so the browser can load <img src="http://localhost:8080/media/abc.jpg">
+    // without needing a JWT token in the request header.
+    private static final String[] PUBLIC_ENDPOINTS = {
+            "/api/auth/**",
+            "/ws/**",
+            "/avatars/**",
+            "/media/**"        // NEW
+    };
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
