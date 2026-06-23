@@ -17,7 +17,8 @@ public interface StatusRepository extends JpaRepository<Status, Long> {
                                        @Param("now") Instant now);
 
     // All non-expired statuses posted by a single user (my own status view).
-    List<Status> findByAuthorIdAndExpiresAtAfterOrderByCreatedAtDesc(Long authorId, Instant now);
+    // Oldest first so the viewer and right panel show chronological order.
+    List<Status> findByAuthorIdAndExpiresAtAfterOrderByCreatedAtAsc(Long authorId, Instant now);
 
     // Used for authorization check before delete.
     // Returns the status only if it belongs to the given author.

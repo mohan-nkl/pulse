@@ -20,4 +20,7 @@ public class SendMessageRequest {
 
     @NotBlank(message = "Message content must not be empty")
     private String content;
+
+    // Optional — set only when this message is a status reply.
+    private Long replyToStatusId;
 }

@@ -1,7 +1,11 @@
 package com.mohan.pulse.services;
 
+import com.mohan.pulse.dtos.ChatMessageResponse;
 import com.mohan.pulse.dtos.CreateStatusRequest;
+import com.mohan.pulse.dtos.SendMessageRequest;
+import com.mohan.pulse.dtos.StatusReplyRequest;
 import com.mohan.pulse.dtos.StatusResponse;
+import com.mohan.pulse.dtos.StatusViewerResponse;
 import com.mohan.pulse.exceptions.ApiException;
 import com.mohan.pulse.models.Status;
 import com.mohan.pulse.models.StatusView;
@@ -35,6 +39,7 @@ public class StatusService {
     private final StatusViewRepository statusViewRepository;
     private final UserRepository       userRepository;
     private final ContactRepository    contactRepository;
+    private final ChatService          chatService;
 
     @Value("${app.upload.status-dir}")
     private String statusDir;
@@ -105,7 +110,7 @@ public class StatusService {
     @Transactional(readOnly = true)
     public List<StatusResponse> getMyStatuses(Long userId) {
         return statusRepository
-                .findByAuthorIdAndExpiresAtAfterOrderByCreatedAtDesc(userId, Instant.now())
+                .findByAuthorIdAndExpiresAtAfterOrderByCreatedAtAsc(userId, Instant.now())
                 .stream()
                 .map(s -> toResponse(s, userId))
                 .collect(Collectors.toList());
@@ -155,7 +160,54 @@ public class StatusService {
         }
     }
 
-    // ── 6. Delete a status ────────────────────────────────────────────────────
+    // ── 6. Get viewers of a status ────────────────────────────────────────────
+    // Only the author can see who viewed their status.
+    // Returns viewers newest-first (most recent view at the top).
+
+    @Transactional(readOnly = true)
+    public List<StatusViewerResponse> getStatusViewers(Long requesterId, Long statusId) {
+        Status status = statusRepository.findById(statusId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Status not found."));
+
+        if (!status.getAuthor().getId().equals(requesterId))
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the author can see viewers.");
+
+        return statusViewRepository.findByStatusIdOrderByViewedAtDesc(statusId)
+                .stream()
+                .map(sv -> StatusViewerResponse.builder()
+                        .viewerId(sv.getViewer().getId())
+                        .viewerName(sv.getViewer().getName())
+                        .viewerAvatarUrl(sv.getViewer().getAvatarUrl())
+                        .viewedAt(sv.getViewedAt())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    // ── 7. Reply to a status ─────────────────────────────────────────────────
+    // Sends a direct message to the status author using the existing chat system.
+    // The author receives a real-time WebSocket push just like any other DM.
+
+    @Transactional
+    public ChatMessageResponse replyToStatus(Long replyerId, Long statusId, StatusReplyRequest request) {
+        Status status = statusRepository.findById(statusId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Status not found."));
+
+        if (status.getExpiresAt().isBefore(Instant.now()))
+            throw new ApiException(HttpStatus.GONE, "This status has expired.");
+
+        if (status.getAuthor().getId().equals(replyerId))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot reply to your own status.");
+
+        // Reuse the full DM pipeline: saves the message, pushes WebSocket to both users
+        SendMessageRequest dmRequest = new SendMessageRequest();
+        dmRequest.setReceiverId(status.getAuthor().getId());
+        dmRequest.setContent(request.getContent());
+        dmRequest.setReplyToStatusId(statusId);   // ← thread the status reference through
+
+        return chatService.sendDirectMessage(replyerId, dmRequest);
+    }
+
+    // ── 8. Delete a status ────────────────────────────────────────────────────
     // findByIdAndAuthorId ensures you can only delete your OWN statuses.
     // Returns 404 whether the status doesn't exist OR belongs to someone else
     // — deliberately doesn't distinguish, to avoid leaking IDs.
