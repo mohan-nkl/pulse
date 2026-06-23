@@ -17,7 +17,11 @@ import java.time.Instant;
 @Table(name = "message_recipient_status",
         uniqueConstraints = @UniqueConstraint(
                 columnNames = {"message_id", "user_id"}
-        ))
+        ),
+        indexes = {
+                @Index(name = "idx_mrs_message", columnList = "message_id"),
+                @Index(name = "idx_mrs_recipient_status", columnList = "user_id, status")
+        })
 public class MessageRecipientStatus {
 
     @Id
@@ -35,6 +39,10 @@ public class MessageRecipientStatus {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MessageStatus status;
+
+    private Instant deliveredAt;
+
+    private Instant readAt;
 
     @UpdateTimestamp
     private Instant updatedAt;
