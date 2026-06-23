@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import HomeButton from "../components/HomeButton";
 import client from "../api/client";
 import {
     connectWebSocket,
@@ -32,13 +33,42 @@ function formatTime(iso) {
     return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+// A friendly "last seen" string, WhatsApp-style.
+function formatLastSeen(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const now = new Date();
+    const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === now.toDateString()) return `today at ${time}`;
+    if (d.toDateString() === yesterday.toDateString()) return `yesterday at ${time}`;
+    return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} at ${time}`;
+}
+
+// "online" / "last seen ..." / "" for the DM chat header.
+function presenceLabel(p) {
+    if (!p) return "";
+    if (p.online) return "online";
+    if (p.lastSeen) return `last seen ${formatLastSeen(p.lastSeen)}`;
+    return "";
+}
+
+// "3 online" if anyone (other than me) is online, else "5 members".
+function groupHeaderLabel(memberNames, presence, currentUserId) {
+    const ids = Object.keys(memberNames).map(Number);
+    if (ids.length === 0) return "";
+    const online = ids.filter((id) => id !== currentUserId && presence[id]?.online).length;
+    return online > 0 ? `${online} online` : `${ids.length} members`;
+}
+
 // The tick(s) shown on MY messages: ✓ sent, ✓✓ delivered, ✓✓ blue read.
 function Ticks({ message }) {
     const status = message.status || "SENT";
     const isRead = status === "READ";
     const isDelivered = status === "DELIVERED" || isRead;
     const symbol = isDelivered ? "✓✓" : "✓";
-    // Bright sky-blue when read; light-grey otherwise.
     const color = isRead ? "#4fc3f7" : "#a8c5bd";
     return <span style={{ color, fontWeight: 700 }}>{symbol}</span>;
 }
@@ -60,6 +90,12 @@ export default function ChatPage() {
     // userId -> name for the open group, so we can label who sent each message.
     const [memberNames, setMemberNames] = useState({});
 
+    // userId -> { userId, online, lastSeen } presence for contacts / open chat.
+    const [presence, setPresence] = useState({});
+
+    // Bumped once a minute purely to re-render relative "last seen ..." labels.
+    const [, setNowTick] = useState(0);
+
     const [showNewGroup, setShowNewGroup] = useState(false);
     const [showMembers, setShowMembers] = useState(false);
 
@@ -73,6 +109,13 @@ export default function ChatPage() {
     useEffect(() => {
         currentUserIdRef.current = currentUserId;
     }, [currentUserId]);
+
+    // Re-render every minute so "last seen ..." stays current (e.g. rolls over
+    // to "yesterday") even if no new presence update arrives.
+    useEffect(() => {
+        const timer = setInterval(() => setNowTick((n) => n + 1), 60000);
+        return () => clearInterval(timer);
+    }, []);
 
     useEffect(() => {
         loadContacts();
@@ -113,6 +156,10 @@ export default function ChatPage() {
                             : m
                     )
                 );
+            },
+            (p) => {
+                // Someone went online/offline — update just that user's presence.
+                setPresence((previous) => ({ ...previous, [p.userId]: p }));
             }
         );
 
@@ -136,8 +183,24 @@ export default function ChatPage() {
                 avatarUrl: c.avatarUrl,
             }));
             setContacts(mapped);
+            loadPresence(mapped.map((c) => c.userId));
         } catch {
             // Leave empty on failure.
+        }
+    };
+
+    // Fetch presence for a batch of users (chat list / group members) in one call.
+    const loadPresence = async (userIds) => {
+        if (!userIds || userIds.length === 0) return;
+        try {
+            const response = await client.post("/api/presence", userIds);
+            const map = {};
+            (response.data.data || []).forEach((p) => {
+                map[p.userId] = p;
+            });
+            setPresence((previous) => ({ ...previous, ...map }));
+        } catch {
+            // Leave presence empty on failure.
         }
     };
 
@@ -165,6 +228,14 @@ export default function ChatPage() {
 
         // Opening a chat means I've read everything in it.
         sendRead(convId);
+
+        // Refresh this person's presence for the header.
+        try {
+            const res = await client.get(`/api/presence/${contact.userId}`);
+            setPresence((previous) => ({ ...previous, [contact.userId]: res.data.data }));
+        } catch {
+            // Keep whatever we already have.
+        }
     };
 
     const openGroup = async (group) => {
@@ -185,6 +256,9 @@ export default function ChatPage() {
                 names[member.userId] = member.name;
             });
             setMemberNames(names);
+
+            // Presence for the members, so the header can show "N online".
+            loadPresence(members.map((member) => member.userId));
         } catch {
             setMessages([]);
             setMemberNames({});
@@ -226,7 +300,10 @@ export default function ChatPage() {
         <div style={styles.page}>
             <aside style={styles.sidebar}>
                 <div style={styles.sidebarHeader}>
-                    <h2 style={styles.sidebarTitle}>Pulse</h2>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <HomeButton compact />
+                        <h2 style={styles.sidebarTitle}>Pulse</h2>
+                    </div>
                     <button style={styles.newGroupBtn} onClick={() => setShowNewGroup(true)}>
                         New group
                     </button>
@@ -262,7 +339,17 @@ export default function ChatPage() {
                         }}
                         onClick={() => openDirect(contact)}
                     >
-                        {contact.name || "Unknown"}
+                        <span style={styles.itemRow}>
+                            <span>{contact.name || "Unknown"}</span>
+                            <span
+                                style={{
+                                    ...styles.dot,
+                                    background: presence[contact.userId]?.online
+                                        ? "#00d96a"
+                                        : "#3b4a54",
+                                }}
+                            />
+                        </span>
                     </button>
                 ))}
             </aside>
@@ -273,7 +360,19 @@ export default function ChatPage() {
                 ) : (
                     <>
                         <header style={styles.chatHeader}>
-                            <span>{selected.name}</span>
+                            <div style={styles.headerInfo}>
+                                <span style={styles.headerName}>{selected.name}</span>
+                                {selected.type === "dm" && (
+                                    <span style={styles.presenceLine}>
+                                        {presenceLabel(presence[selected.userId])}
+                                    </span>
+                                )}
+                                {selected.type === "group" && (
+                                    <span style={styles.presenceLine}>
+                                        {groupHeaderLabel(memberNames, presence, currentUserId)}
+                                    </span>
+                                )}
+                            </div>
                             {selected.type === "group" && (
                                 <button style={styles.infoBtn} onClick={() => setShowMembers((v) => !v)}>
                                     Members
@@ -396,6 +495,13 @@ const styles = {
         color: "#e9edef",
     },
     itemActive: { background: "#2a3942" },
+    itemRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" },
+    dot: {
+        width: "9px",
+        height: "9px",
+        borderRadius: "50%",
+        flex: "0 0 auto",
+    },
     chat: { flex: 1, display: "flex", flexDirection: "column", background: "#0b141a" },
     placeholder: {
         flex: 1,
@@ -405,14 +511,16 @@ const styles = {
         color: "#8696a0",
     },
     chatHeader: {
-        padding: "14px 16px",
+        padding: "10px 16px",
         borderBottom: "1px solid #222d34",
-        fontWeight: 600,
         color: "#e9edef",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
     },
+    headerInfo: { display: "flex", flexDirection: "column" },
+    headerName: { fontWeight: 600, fontSize: "15px" },
+    presenceLine: { fontSize: "12px", color: "#8696a0", marginTop: "1px", minHeight: "14px" },
     infoBtn: {
         fontSize: "13px",
         padding: "6px 12px",
@@ -430,9 +538,6 @@ const styles = {
         flexDirection: "column",
         gap: "8px",
     },
-    // Column bubble: text block, then a meta row pinned to the right at the
-    // bottom. The meta's negative top margin lets it tuck up next to the last
-    // line of short messages so the bubble stays compact.
     bubble: {
         maxWidth: "65%",
         padding: "6px 10px 5px 12px",
@@ -446,8 +551,6 @@ const styles = {
     bubbleTheirs: { alignSelf: "flex-start", background: "#202c33", color: "#e9edef" },
     sender: { fontSize: "12px", color: "#53bdeb", marginBottom: "2px", fontWeight: 600 },
     text: { whiteSpace: "pre-wrap", wordBreak: "break-word", textAlign: "left" },
-    // Bottom-right footer. alignSelf:flex-end pushes it to the right edge of
-    // the bubble; it always sits BELOW the text, in the corner.
     meta: {
         alignSelf: "flex-end",
         display: "inline-flex",
