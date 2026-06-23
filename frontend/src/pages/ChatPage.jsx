@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import HomeButton from "../components/HomeButton";
 import client from "../api/client";
+import { uploadMedia, getMessageType } from "../api/mediaApi";
 import {
     connectWebSocket,
     sendMessage,
@@ -101,6 +102,75 @@ function Ticks({ message }) {
     return <span style={{ color, fontWeight: 700 }}>{symbol}</span>;
 }
 
+// Full-screen image preview, opened by clicking an image bubble.
+function Lightbox({ url, onClose }) {
+    if (!url) return null;
+    return (
+        <div style={styles.lightboxOverlay} onClick={onClose}>
+            <button style={styles.lightboxClose} onClick={onClose}>✕</button>
+            <img
+                src={url}
+                alt="preview"
+                style={styles.lightboxImg}
+                onClick={(e) => e.stopPropagation()}
+            />
+        </div>
+    );
+}
+
+// Renders the body of a message bubble.
+// For TEXT: shows the text. For IMAGE/VIDEO/AUDIO/FILE: the matching media element.
+function MessageContent({ message, onImageClick }) {
+    const { type, mediaUrl, content } = message;
+
+    if (type === "IMAGE") {
+        return (
+            <div>
+                <img
+                    src={mediaUrl}
+                    alt="image"
+                    style={styles.mediaImage}
+                    onClick={() => onImageClick(mediaUrl)}
+                />
+                {content && <p style={styles.caption}>{content}</p>}
+            </div>
+        );
+    }
+
+    if (type === "VIDEO") {
+        return (
+            <div>
+                <video src={mediaUrl} controls style={styles.mediaVideo} />
+                {content && <p style={styles.caption}>{content}</p>}
+            </div>
+        );
+    }
+
+    if (type === "AUDIO") {
+        return (
+            <div>
+                <audio src={mediaUrl} controls style={styles.mediaAudio} />
+                {content && <p style={styles.caption}>{content}</p>}
+            </div>
+        );
+    }
+
+    if (type === "FILE") {
+        const filename = mediaUrl ? mediaUrl.split("/").pop() : "file";
+        return (
+            <div>
+                <a href={mediaUrl} target="_blank" rel="noreferrer" style={styles.fileLink}>
+                    📎 {filename}
+                </a>
+                {content && <p style={styles.caption}>{content}</p>}
+            </div>
+        );
+    }
+
+    // Default: plain text
+    return <span style={styles.text}>{content}</span>;
+}
+
 export default function ChatPage() {
     const { user } = useAuth();
     const currentUserId = user?.userId;
@@ -121,8 +191,8 @@ export default function ChatPage() {
     // userId -> { userId, online, lastSeen } presence for contacts / open chat.
     const [presence, setPresence] = useState({});
 
-    // conversationId -> { [userId]: timeoutId } for people currently typing in
-    // that chat. The timeout auto-clears the entry if no "stopped" arrives.
+    // conversationId -> { [userId]: true } for people currently typing in that
+    // chat. A per-user timer (in a ref) auto-clears the entry if no "stopped" arrives.
     const [typing, setTyping] = useState({});
 
     // Bumped once a minute purely to re-render relative "last seen ..." labels.
@@ -131,11 +201,18 @@ export default function ChatPage() {
     const [showNewGroup, setShowNewGroup] = useState(false);
     const [showMembers, setShowMembers] = useState(false);
 
+    // Media: upload-in-progress flag and the currently-open lightbox image.
+    const [isUploading, setIsUploading] = useState(false);
+    const [lightboxUrl, setLightboxUrl] = useState(null);
+
     const openConversationIdRef = useRef(null);
     const bottomRef = useRef(null);
     // Always-fresh copy of my id, so the WebSocket callback (created once at
     // mount) never reads a stale/undefined value.
     const currentUserIdRef = useRef(null);
+
+    // Hidden file input for the attach (paperclip) button.
+    const fileInputRef = useRef(null);
 
     // Outbound-typing bookkeeping (refs, not state — they must never re-render).
     const lastTypingSentRef = useRef(0);       // when we last sent "typing: true"
@@ -149,6 +226,17 @@ export default function ChatPage() {
         currentUserIdRef.current = currentUserId;
     }, [currentUserId]);
 
+    // Persist the selected chat so a reload restores it.
+    useEffect(() => {
+        if (!selected) {
+            sessionStorage.removeItem("pulse_selected");
+        } else if (selected.type === "dm") {
+            sessionStorage.setItem("pulse_selected", JSON.stringify({ type: "dm", userId: selected.userId }));
+        } else if (selected.type === "group") {
+            sessionStorage.setItem("pulse_selected", JSON.stringify({ type: "group", id: selected.id }));
+        }
+    }, [selected]);
+
     // Re-render every minute so "last seen ..." stays current (e.g. rolls over
     // to "yesterday") even if no new presence update arrives.
     useEffect(() => {
@@ -157,8 +245,26 @@ export default function ChatPage() {
     }, []);
 
     useEffect(() => {
-        loadContacts();
-        loadGroups();
+        const init = async () => {
+            const [loadedContacts, loadedGroups] = await Promise.all([loadContacts(), loadGroups()]);
+
+            const saved = sessionStorage.getItem("pulse_selected");
+            if (saved) {
+                try {
+                    const { type, userId, id } = JSON.parse(saved);
+                    if (type === "dm") {
+                        const contact = loadedContacts.find((c) => c.userId === userId);
+                        if (contact) openDirect(contact);
+                    } else if (type === "group") {
+                        const group = loadedGroups.find((g) => g.id === id);
+                        if (group) openGroup(group);
+                    }
+                } catch {
+                    /* ignore bad data */
+                }
+            }
+        };
+        init();
 
         connectWebSocket(
             (message) => {
@@ -311,8 +417,9 @@ export default function ChatPage() {
             }));
             setContacts(mapped);
             loadPresence(mapped.map((c) => c.userId));
+            return mapped;
         } catch {
-            // Leave empty on failure.
+            return [];
         }
     };
 
@@ -333,9 +440,11 @@ export default function ChatPage() {
 
     const loadGroups = async () => {
         try {
-            setGroups(await listGroups());
+            const data = await listGroups();
+            setGroups(data);
+            return data;
         } catch {
-            // Leave empty on failure.
+            return [];
         }
     };
 
@@ -412,6 +521,36 @@ export default function ChatPage() {
         }
         setDraft("");
         // Sending a message means I've stopped typing.
+        stopTypingNow(openConversationIdRef.current);
+    };
+
+    // Called when the user picks a file from the file picker.
+    const handleFileSelected = async (event) => {
+        const file = event.target.files[0];
+        if (!file || !selected) return;
+
+        // Reset so picking the same file again still fires onChange.
+        event.target.value = "";
+
+        const messageType = getMessageType(file); // "IMAGE", "VIDEO", "AUDIO", or "FILE"
+
+        setIsUploading(true);
+        try {
+            const mediaUrl = await uploadMedia(file); // upload to server, get back URL
+
+            if (selected.type === "dm") {
+                sendMessage(selected.userId, "", messageType, mediaUrl);
+            } else {
+                sendGroupMessage(selected.id, "", messageType, mediaUrl);
+            }
+        } catch (error) {
+            console.error("Media upload failed:", error);
+            alert("Upload failed. Please try again.");
+        } finally {
+            setIsUploading(false);
+        }
+
+        // Attaching a file means I've stopped typing.
         stopTypingNow(openConversationIdRef.current);
     };
 
@@ -535,7 +674,8 @@ export default function ChatPage() {
                                             </div>
                                         )}
 
-                                        <span style={styles.text}>{message.content}</span>
+                                        {/* renders text, image, video, audio, or file */}
+                                        <MessageContent message={message} onImageClick={setLightboxUrl} />
 
                                         <span style={styles.meta}>
                                             <span style={styles.time}>
@@ -550,17 +690,42 @@ export default function ChatPage() {
                         </div>
 
                         <div style={styles.composer}>
+                            {/* hidden file input */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                style={{ display: "none" }}
+                                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+                                onChange={handleFileSelected}
+                            />
+
+                            {/* paperclip / attach button */}
+                            <button
+                                style={styles.attachButton}
+                                onClick={() => fileInputRef.current.click()}
+                                disabled={isUploading}
+                                title="Attach a file"
+                            >
+                                📎
+                            </button>
+
                             <input
                                 style={styles.input}
-                                value={draft}
+                                value={isUploading ? "Uploading..." : draft}
                                 onChange={(e) => {
                                     setDraft(e.target.value);
                                     handleTypingActivity();
                                 }}
                                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
                                 placeholder="Type a message"
+                                disabled={isUploading}
                             />
-                            <button style={styles.sendButton} onClick={handleSend}>
+
+                            <button
+                                style={styles.sendButton}
+                                onClick={handleSend}
+                                disabled={isUploading}
+                            >
                                 Send
                             </button>
                         </div>
@@ -585,6 +750,8 @@ export default function ChatPage() {
                     onCreated={handleGroupCreated}
                 />
             )}
+
+            <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
         </div>
     );
 }
@@ -700,12 +867,36 @@ const styles = {
         whiteSpace: "nowrap",
     },
     time: { fontSize: "11px", color: "#9fc1b8" },
+
+    // media styles
+    mediaImage: {
+        maxWidth: "240px",
+        maxHeight: "240px",
+        borderRadius: "8px",
+        cursor: "pointer",
+        display: "block",
+        marginBottom: "4px",
+    },
+    mediaVideo: { maxWidth: "280px", borderRadius: "8px", display: "block", marginBottom: "4px" },
+    mediaAudio: { maxWidth: "260px", display: "block", marginBottom: "4px" },
+    fileLink: { color: "#53bdeb", textDecoration: "none", display: "block", marginBottom: "4px" },
+    caption: { margin: "4px 0 0", fontSize: "13px" },
+
     composer: {
         display: "flex",
         gap: "8px",
         padding: "12px",
         borderTop: "1px solid #222d34",
         background: "#111b21",
+    },
+    attachButton: {
+        padding: "10px 12px",
+        border: "none",
+        borderRadius: "6px",
+        background: "#2a3942",
+        color: "#e9edef",
+        cursor: "pointer",
+        fontSize: "16px",
     },
     input: {
         flex: 1,
@@ -724,5 +915,27 @@ const styles = {
         cursor: "pointer",
         background: "#00a884",
         color: "#fff",
+    },
+
+    lightboxOverlay: {
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.85)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+    },
+    lightboxImg: { maxWidth: "90vw", maxHeight: "90vh", borderRadius: "8px", objectFit: "contain" },
+    lightboxClose: {
+        position: "absolute",
+        top: "16px",
+        right: "20px",
+        background: "none",
+        border: "none",
+        color: "#fff",
+        fontSize: "28px",
+        cursor: "pointer",
+        lineHeight: 1,
     },
 };

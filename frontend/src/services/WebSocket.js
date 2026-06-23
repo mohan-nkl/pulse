@@ -44,32 +44,39 @@ export function connectWebSocket(onMessage, onStatus, onPresence, onTyping) {
     stompClient.activate();
 }
 
-export function sendMessage(receiverId, content) {
-    if (!stompClient || !stompClient.connected) {
-        return;
-    }
+/**
+ * Send a direct message to another user.
+ *
+ * Text message:
+ *   sendMessage(5, "hello")
+ *
+ * Media message (after uploading the file first):
+ *   sendMessage(5, "", "IMAGE", "http://localhost:8080/media/abc.jpg")
+ */
+export function sendMessage(receiverId, content, messageType = "TEXT", mediaUrl = null) {
+    if (!stompClient || !stompClient.connected) return;
 
     stompClient.publish({
         destination: "/app/chat.send",
-        body: JSON.stringify({ receiverId, content }),
+        body: JSON.stringify({ receiverId, content, messageType, mediaUrl }),
     });
 }
 
-export function sendGroupMessage(groupId, content) {
-    if (!stompClient || !stompClient.connected) {
-        return;
-    }
+/**
+ * Send a message to a group.
+ * Same as sendMessage() but with groupId instead of receiverId.
+ */
+export function sendGroupMessage(groupId, content, messageType = "TEXT", mediaUrl = null) {
+    if (!stompClient || !stompClient.connected) return;
 
     stompClient.publish({
         destination: "/app/group.send",
-        body: JSON.stringify({ groupId, content }),
+        body: JSON.stringify({ groupId, content, messageType, mediaUrl }),
     });
 }
 
 export function sendDelivered(conversationId) {
-    if (!stompClient || !stompClient.connected) {
-        return;
-    }
+    if (!stompClient || !stompClient.connected) return;
 
     stompClient.publish({
         destination: "/app/chat.delivered",
@@ -78,9 +85,7 @@ export function sendDelivered(conversationId) {
 }
 
 export function sendRead(conversationId) {
-    if (!stompClient || !stompClient.connected) {
-        return;
-    }
+    if (!stompClient || !stompClient.connected) return;
 
     stompClient.publish({
         destination: "/app/chat.read",
