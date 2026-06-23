@@ -43,8 +43,23 @@ export const viewStatus = async (statusId) => {
     await client.post(`/api/v1/statuses/${statusId}/view`);
 };
 
+// ── Reply to a status ─────────────────────────────────────────────────────────
+// Sends a DM to the status author. Returns the sent ChatMessageResponse.
+export const replyToStatus = async (statusId, content) => {
+    const response = await client.post(`/api/v1/statuses/${statusId}/reply`, { content });
+    return response.data.data;
+};
+
 // ── Delete ────────────────────────────────────────────────────────────────────
 // Only works on your own statuses. Backend returns 404 if not yours.
 export const deleteStatus = async (statusId) => {
     await client.delete(`/api/v1/statuses/${statusId}`);
+};
+
+// ── Viewers list ──────────────────────────────────────────────────────────────
+// Returns [ { viewerId, viewerName, viewerAvatarUrl, viewedAt } ]
+// Only works if you are the author — backend returns 403 otherwise.
+export const getStatusViewers = async (statusId) => {
+    const response = await client.get(`/api/v1/statuses/${statusId}/viewers`);
+    return response.data.data;
 };

@@ -8,6 +8,8 @@ import {
     uploadStatusMedia,
     viewStatus,
     deleteStatus,
+    getStatusViewers,
+    replyToStatus,
 } from "../api/statusApi";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,11 +59,76 @@ function RingAvatar({ name, url, hasUnread, size = 46 }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// StatusCard — right panel card for your own statuses, shows viewers inline
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StatusCard({ status, onDelete }) {
+    const [viewers, setViewers] = useState([]);
+
+    // Fetch viewer names as soon as this card renders
+    useEffect(() => {
+        if (status.viewCount > 0) {
+            getStatusViewers(status.id).then(setViewers).catch(() => {});
+        }
+    }, [status.id, status.viewCount]);
+
+    return (
+        <div style={p.card}>
+
+            {/* Image */}
+            {status.mediaUrl && (
+                <img src={status.mediaUrl} alt="status" style={p.cardImg} />
+            )}
+
+            {/* Text */}
+            {status.content && (
+                <p style={p.cardText}>{status.content}</p>
+            )}
+
+            {/* Meta row: time · count · expiry · delete */}
+            <div style={p.cardMeta}>
+                <span>{timeAgo(status.createdAt)}</span>
+                <span>👁 {status.viewCount ?? 0}</span>
+                <span style={{ color: "#3a4a54", marginLeft: "auto" }}>
+                    expires {timeAgo(new Date(status.expiresAt))} from now
+                </span>
+                <button style={p.delBtn} onClick={() => onDelete(status.id)} title="Delete">🗑</button>
+            </div>
+
+            {/* Viewer names — shown immediately if views > 0 */}
+            {viewers.length > 0 && (
+                <div style={p.viewerSection}>
+                    <span style={p.viewerSectionLabel}>Seen by</span>
+                    {viewers.map(vr => (
+                        <div key={vr.viewerId} style={p.viewerChip}>
+                            <img
+                                src={avatarSrc(vr.viewerName, vr.viewerAvatarUrl)}
+                                alt={vr.viewerName}
+                                style={p.chipAvatar}
+                            />
+                            <div style={p.chipInfo}>
+                                <span style={p.chipName}>{vr.viewerName}</span>
+                                <span style={p.chipTime}>{timeAgo(vr.viewedAt)}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // StatusViewer — fullscreen modal, cycles through one author's statuses
 // ─────────────────────────────────────────────────────────────────────────────
 
 function StatusViewer({ statuses, onClose }) {
-    const [idx, setIdx] = useState(0);
+    const [idx, setIdx]       = useState(0);
+    const [viewers, setViewers] = useState([]);
+    const [reply, setReply]   = useState("");
+    const [sending, setSending] = useState(false);
+    const [sent, setSent]     = useState(false);
+
     const current = statuses[idx];
 
     // Mark viewed as soon as the item appears
@@ -71,10 +138,33 @@ function StatusViewer({ statuses, onClose }) {
         }
     }, [current]);
 
+    // Fetch viewer names whenever the visible status changes (author only)
+    useEffect(() => {
+        setViewers([]);
+        setReply("");
+        setSent(false);
+        if (current?.viewCount != null) {
+            getStatusViewers(current.id).then(setViewers).catch(() => {});
+        }
+    }, [current]);
+
     if (!current) return null;
 
     const goNext = () => idx < statuses.length - 1 ? setIdx(idx + 1) : onClose();
     const goPrev = () => idx > 0 && setIdx(idx - 1);
+
+    const handleReply = async () => {
+        const text = reply.trim();
+        if (!text || sending) return;
+        setSending(true);
+        try {
+            await replyToStatus(current.id, text);
+            setReply("");
+            setSent(true);
+            setTimeout(() => setSent(false), 3000);
+        } catch { /* silent */ }
+        finally { setSending(false); }
+    };
 
     return (
         <div style={v.backdrop} onClick={onClose}>
@@ -100,22 +190,17 @@ function StatusViewer({ statuses, onClose }) {
                     <button style={v.closeBtn} onClick={onClose}>✕</button>
                 </div>
 
-                {/* Media (image) */}
+                {/* Media */}
                 {current.mediaUrl && (
                     <div style={v.mediaWrap}>
-                        <img
-                            src={current.mediaUrl}
-                            alt="status"
-                            style={v.media}
-                        />
+                        <img src={current.mediaUrl} alt="status" style={v.media} />
                     </div>
                 )}
 
-                {/* Text content */}
+                {/* Text */}
                 {current.content && (
                     <div style={{
                         ...v.textBox,
-                        // if there's also an image, overlay text on a dark bar below it
                         marginTop: current.mediaUrl ? 0 : 8,
                         borderRadius: current.mediaUrl ? "0 0 8px 8px" : 8,
                     }}>
@@ -123,10 +208,66 @@ function StatusViewer({ statuses, onClose }) {
                     </div>
                 )}
 
-                {/* View count — only for the author's own statuses */}
+                {/* ── Seen by (author only) — always visible, no toggle ── */}
                 {current.viewCount != null && (
-                    <div style={v.views}>
-                        👁 {current.viewCount} view{current.viewCount !== 1 ? "s" : ""}
+                    <div style={v.seenSection}>
+
+                        {/* Count row */}
+                        <div style={v.seenHeader}>
+                            <span style={v.eyeIcon}>👁</span>
+                            <span style={v.seenCount}>
+                                {current.viewCount} {current.viewCount === 1 ? "view" : "views"}
+                            </span>
+                        </div>
+
+                        {/* Viewer rows — shown immediately */}
+                        {viewers.length === 0 && current.viewCount === 0 && (
+                            <p style={v.hint}>No views yet</p>
+                        )}
+                        {viewers.length === 0 && current.viewCount > 0 && (
+                            <p style={v.hint}>Loading…</p>
+                        )}
+                        {viewers.map(vr => (
+                            <div key={vr.viewerId} style={v.viewerRow}>
+                                <img
+                                    src={avatarSrc(vr.viewerName, vr.viewerAvatarUrl)}
+                                    alt={vr.viewerName}
+                                    style={v.viewerAvatar}
+                                />
+                                <div style={v.viewerInfo}>
+                                    <span style={v.viewerName}>{vr.viewerName}</span>
+                                    <span style={v.viewerTime}>{timeAgo(vr.viewedAt)}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* ── Reply bar (contacts only, not shown on your own status) ── */}
+                {current.viewCount == null && (
+                    <div style={v.replyBar}>
+                        {sent ? (
+                            <div style={v.sentMsg}>✓ Reply sent — check your chat</div>
+                        ) : (
+                            <>
+                                <input
+                                    style={v.replyInput}
+                                    value={reply}
+                                    onChange={e => setReply(e.target.value)}
+                                    onKeyDown={e => e.key === "Enter" && handleReply()}
+                                    placeholder={`Reply to ${current.authorName}…`}
+                                    maxLength={1000}
+                                    disabled={sending}
+                                />
+                                <button
+                                    style={{ ...v.replyBtn, opacity: reply.trim() ? 1 : 0.4 }}
+                                    onClick={handleReply}
+                                    disabled={!reply.trim() || sending}
+                                >
+                                    {sending ? "..." : "↩ Send"}
+                                </button>
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -380,7 +521,9 @@ export default function StatusPage() {
                         <div style={p.label}>RECENT UPDATES</div>
                         {grouped.map(g => (
                             <div key={g.authorId} style={p.row}
-                                onClick={() => setViewer(g.items)}>
+                                onClick={() => setViewer(
+                                    [...g.items].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+                                )}>
                                 <RingAvatar
                                     name={g.authorName}
                                     url={g.authorAvatarUrl}
@@ -417,33 +560,7 @@ export default function StatusPage() {
                     <div style={p.cardList}>
                         <h3 style={p.cardListTitle}>Your active statuses</h3>
                         {myStatuses.map(s => (
-                            <div key={s.id} style={p.card}>
-
-                                {/* Image */}
-                                {s.mediaUrl && (
-                                    <img src={s.mediaUrl} alt="status" style={p.cardImg} />
-                                )}
-
-                                {/* Text */}
-                                {s.content && (
-                                    <p style={p.cardText}>{s.content}</p>
-                                )}
-
-                                <div style={p.cardMeta}>
-                                    <span>{timeAgo(s.createdAt)}</span>
-                                    <span>👁 {s.viewCount ?? 0}</span>
-                                    <span style={{ color: "#3a4a54" }}>
-                                        expires {timeAgo(
-                                            new Date(new Date(s.expiresAt).getTime())
-                                        )} from now
-                                    </span>
-                                    <button
-                                        style={p.delBtn}
-                                        onClick={() => handleDelete(s.id)}
-                                        title="Delete"
-                                    >🗑</button>
-                                </div>
-                            </div>
+                            <StatusCard key={s.id} status={s} onDelete={handleDelete} />
                         ))}
                     </div>
                 )}
@@ -488,9 +605,23 @@ const v = {
     textBox:  { background: "#2a3942", padding: "14px 16px" },
     text:     { fontSize: 18, color: "#e9edef", margin: 0, textAlign: "center", whiteSpace: "pre-wrap", wordBreak: "break-word" },
     views:    { fontSize: 13, color: "#8696a0", textAlign: "right" },
+    seenSection: { borderTop: "1px solid #2a3942", paddingTop: 10, display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" },
+    seenHeader:  { display: "flex", alignItems: "center", gap: 6, marginBottom: 4 },
+    eyeIcon:     { fontSize: 14 },
+    seenCount:   { fontSize: 13, fontWeight: 600, color: "#e9edef" },
+    viewerRow:   { display: "flex", alignItems: "center", gap: 10, padding: "5px 2px", borderRadius: 6 },
+    viewerAvatar:{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0 },
+    viewerInfo:  { display: "flex", alignItems: "center", gap: 6 },
+    viewerName:  { fontSize: 13, color: "#e9edef", fontWeight: 500 },
+    viewerTime:  { fontSize: 11, color: "#8696a0" },
+    hint:        { fontSize: 12, color: "#8696a0", margin: "2px 0", padding: "0 2px" },
     nav:      { display: "flex", alignItems: "center", justifyContent: "space-between" },
     navBtn:   { background: "#2a3942", border: "none", borderRadius: 6, color: "#e9edef", padding: "8px 14px", cursor: "pointer", fontSize: 13 },
     counter:  { fontSize: 13, color: "#8696a0" },
+    replyBar: { display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid #2a3942", paddingTop: 10 },
+    replyInput: { flex: 1, background: "#2a3942", border: "1px solid #3a4a54", borderRadius: 20, color: "#e9edef", fontSize: 14, padding: "8px 14px", outline: "none", fontFamily: "inherit" },
+    replyBtn:   { background: "#00a884", border: "none", borderRadius: 20, color: "#fff", padding: "8px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" },
+    sentMsg:    { fontSize: 13, color: "#00a884", fontWeight: 500, textAlign: "center", width: "100%", padding: "4px 0" },
 };
 
 // Compose form
@@ -535,5 +666,12 @@ const p = {
     cardImg:       { width: "100%", maxHeight: 260, objectFit: "cover", display: "block" },
     cardText:      { fontSize: 16, color: "#e9edef", margin: 0, padding: "14px 16px", whiteSpace: "pre-wrap", wordBreak: "break-word" },
     cardMeta:      { display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", fontSize: 12, color: "#8696a0", borderTop: "1px solid #2a3942" },
-    delBtn:        { marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#8696a0" },
+    delBtn:        { background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#8696a0" },
+    viewerSection: { display: "flex", flexDirection: "column", gap: 2, padding: "8px 16px 12px", borderTop: "1px solid #2a3942" },
+    viewerSectionLabel: { fontSize: 11, color: "#8696a0", letterSpacing: "0.4px", marginBottom: 4 },
+    viewerChip:    { display: "flex", alignItems: "center", gap: 10, padding: "5px 0" },
+    chipAvatar:    { width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0 },
+    chipInfo:      { display: "flex", alignItems: "center", gap: 8 },
+    chipName:      { fontSize: 13, color: "#e9edef", fontWeight: 500 },
+    chipTime:      { fontSize: 11, color: "#8696a0" },
 };

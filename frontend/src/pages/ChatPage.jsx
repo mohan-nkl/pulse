@@ -299,6 +299,31 @@ export default function ChatPage() {
                                             </div>
                                         )}
 
+                                        {/* Status reply preview — shown above the reply text */}
+                                        {message.statusPreview && (
+                                            <div style={styles.statusPreview}>
+                                                {message.statusPreview.mediaUrl && (
+                                                    <img
+                                                        src={message.statusPreview.mediaUrl}
+                                                        alt="status"
+                                                        style={styles.previewImg}
+                                                    />
+                                                )}
+                                                <div style={styles.previewBody}>
+                                                    <span style={styles.previewAuthor}>
+                                                        {message.statusPreview.authorName}'s status
+                                                    </span>
+                                                    {message.statusPreview.content && (
+                                                        <span style={styles.previewText}>
+                                                            {message.statusPreview.content.length > 60
+                                                                ? message.statusPreview.content.slice(0, 60) + "…"
+                                                                : message.statusPreview.content}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <span style={styles.text}>{message.content}</span>
 
                                         <span style={styles.meta}>
@@ -445,6 +470,33 @@ const styles = {
     bubbleMine: { alignSelf: "flex-end", background: "#005c4b", color: "#e9edef" },
     bubbleTheirs: { alignSelf: "flex-start", background: "#202c33", color: "#e9edef" },
     sender: { fontSize: "12px", color: "#53bdeb", marginBottom: "2px", fontWeight: 600 },
+    statusPreview: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        background: "rgba(0,0,0,0.2)",
+        borderLeft: "3px solid #00a884",
+        borderRadius: "4px",
+        padding: "6px 8px",
+        marginBottom: 6,
+        overflow: "hidden",
+    },
+    previewImg: {
+        width: 40, height: 40,
+        borderRadius: 4,
+        objectFit: "cover",
+        flexShrink: 0,
+    },
+    previewBody: {
+        display: "flex", flexDirection: "column", gap: 2, minWidth: 0,
+    },
+    previewAuthor: {
+        fontSize: 11, color: "#00a884", fontWeight: 600,
+    },
+    previewText: {
+        fontSize: 12, color: "#a8c5bd",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+    },
     text: { whiteSpace: "pre-wrap", wordBreak: "break-word", textAlign: "left" },
     // Bottom-right footer. alignSelf:flex-end pushes it to the right edge of
     // the bubble; it always sits BELOW the text, in the corner.

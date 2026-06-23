@@ -14,4 +14,11 @@ public class ChatMessageResponse {
     private Long senderId;
     private String content;
     private Instant createdAt;
+
+    // Non-null only when this message is a status reply.
+    // Null means it's a regular message — frontend renders it normally.
+    private StatusPreviewDto statusPreview;
+
+    public ChatMessageResponse(Long id, String conversationId, Long id1, String content, Instant createdAt) {
+    }
 }

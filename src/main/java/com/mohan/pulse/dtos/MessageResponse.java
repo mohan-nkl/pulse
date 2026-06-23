@@ -18,4 +18,7 @@ public class MessageResponse {
     private int deliveredCount;
     private int readCount;
     private int totalRecipients;
+
+    // Non-null only when this message is a status reply.
+    private StatusPreviewDto statusPreview;
 }

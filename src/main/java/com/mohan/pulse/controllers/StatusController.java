@@ -1,8 +1,11 @@
 package com.mohan.pulse.controllers;
 
 import com.mohan.pulse.dtos.ApiResponse;
+import com.mohan.pulse.dtos.ChatMessageResponse;
 import com.mohan.pulse.dtos.CreateStatusRequest;
+import com.mohan.pulse.dtos.StatusReplyRequest;
 import com.mohan.pulse.dtos.StatusResponse;
+import com.mohan.pulse.dtos.StatusViewerResponse;
 import com.mohan.pulse.security.SecurityUtil;
 import com.mohan.pulse.services.StatusService;
 import jakarta.validation.Valid;
@@ -67,6 +70,28 @@ public class StatusController {
         Long userId = SecurityUtil.currentUserId();
         statusService.viewStatus(userId, statusId);
         return ResponseEntity.ok(ApiResponse.ok("Viewed.", null));
+    }
+
+    // GET /api/v1/statuses/{statusId}/viewers
+    // Returns the list of users who viewed this status.
+    // 403 if you're not the author.
+    @GetMapping("/{statusId}/viewers")
+    public ResponseEntity<ApiResponse<List<StatusViewerResponse>>> getViewers(
+            @PathVariable Long statusId) {
+        Long userId = SecurityUtil.currentUserId();
+        return ResponseEntity.ok(ApiResponse.ok(statusService.getStatusViewers(userId, statusId)));
+    }
+
+    // POST /api/v1/statuses/{statusId}/reply
+    // Send a DM reply to the status author. Uses the existing chat pipeline
+    // so the author gets a real-time WebSocket notification.
+    @PostMapping("/{statusId}/reply")
+    public ResponseEntity<ApiResponse<ChatMessageResponse>> replyToStatus(
+            @PathVariable Long statusId,
+            @Valid @RequestBody StatusReplyRequest request) {
+        Long userId = SecurityUtil.currentUserId();
+        return ResponseEntity.ok(ApiResponse.ok("Reply sent.",
+                statusService.replyToStatus(userId, statusId, request)));
     }
 
     // DELETE /api/v1/statuses/{statusId}
