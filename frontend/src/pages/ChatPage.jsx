@@ -8,11 +8,20 @@ import {
     sendGroupMessage,
     sendDelivered,
     sendRead,
+    sendTyping,
     disconnectWebSocket,
 } from "../services/WebSocket.js";
 import { listGroups, getGroupHistory, getGroupMembers } from "../api/groupApi";
 import NewGroupModal from "../components/NewGroupModal";
 import GroupMembersPanel from "../components/GroupMembersPanel";
+
+// How often (at most) we tell the server "I'm typing" while keys are flowing,
+// and how long after the last keystroke we send "I stopped".
+const TYPING_THROTTLE_MS = 2000;
+const TYPING_IDLE_MS = 3000;
+// How long a RECEIVED "typing" lasts before we clear it ourselves, in case the
+// sender's "stopped" event never arrives (dropped socket, closed tab).
+const TYPING_EXPIRE_MS = 4000;
 
 // Client-side mirrors of the backend ConversationUtil — must produce the SAME
 // ids, so we can tell which open conversation an incoming live message belongs to.
@@ -63,6 +72,25 @@ function groupHeaderLabel(memberNames, presence, currentUserId) {
     return online > 0 ? `${online} online` : `${ids.length} members`;
 }
 
+// The header's second line. Typing wins over presence: if someone is typing in
+// THIS conversation, show that; otherwise fall back to online / last seen.
+function headerStatusLine(selected, typingUserIds, memberNames, presence, currentUserId) {
+    if (selected.type === "dm") {
+        // For a DM there's only one other person; any typing entry means them.
+        if (typingUserIds.length > 0) return "typing...";
+        return presenceLabel(presence[selected.userId]);
+    }
+    // Group: name the typers (other than me), up to two, then "and N others".
+    const others = typingUserIds.filter((id) => id !== currentUserId);
+    if (others.length > 0) {
+        const names = others.map((id) => memberNames[id] || "Someone");
+        if (names.length === 1) return `${names[0]} is typing...`;
+        if (names.length === 2) return `${names[0]} and ${names[1]} are typing...`;
+        return `${names[0]}, ${names[1]} and ${names.length - 2} others are typing...`;
+    }
+    return groupHeaderLabel(memberNames, presence, currentUserId);
+}
+
 // The tick(s) shown on MY messages: ✓ sent, ✓✓ delivered, ✓✓ blue read.
 function Ticks({ message }) {
     const status = message.status || "SENT";
@@ -93,6 +121,10 @@ export default function ChatPage() {
     // userId -> { userId, online, lastSeen } presence for contacts / open chat.
     const [presence, setPresence] = useState({});
 
+    // conversationId -> { [userId]: timeoutId } for people currently typing in
+    // that chat. The timeout auto-clears the entry if no "stopped" arrives.
+    const [typing, setTyping] = useState({});
+
     // Bumped once a minute purely to re-render relative "last seen ..." labels.
     const [, setNowTick] = useState(0);
 
@@ -104,6 +136,13 @@ export default function ChatPage() {
     // Always-fresh copy of my id, so the WebSocket callback (created once at
     // mount) never reads a stale/undefined value.
     const currentUserIdRef = useRef(null);
+
+    // Outbound-typing bookkeeping (refs, not state — they must never re-render).
+    const lastTypingSentRef = useRef(0);       // when we last sent "typing: true"
+    const typingIdleTimerRef = useRef(null);   // fires "typing: false" after a pause
+    // Holds the per-user auto-expire timers for RECEIVED typing, so we can clear
+    // them on unmount and avoid leaks.
+    const typingExpiryTimersRef = useRef({});
 
     // Keep the id ref in sync with the logged-in user.
     useEffect(() => {
@@ -133,7 +172,10 @@ export default function ChatPage() {
                     return;
                 }
 
-                // Someone else's message.
+                // Someone else sent this. A new message means they're no longer
+                // "typing" — clear any indicator we were showing for them.
+                clearTyping(message.conversationId, message.senderId);
+
                 if (message.conversationId === openConversationIdRef.current) {
                     setMessages((previous) => [...previous, message]);
                     sendRead(message.conversationId);     // I'm looking at it
@@ -160,16 +202,101 @@ export default function ChatPage() {
             (p) => {
                 // Someone went online/offline — update just that user's presence.
                 setPresence((previous) => ({ ...previous, [p.userId]: p }));
+            },
+            (event) => {
+                // Someone started/stopped typing in a chat I'm part of.
+                if (event.typing) {
+                    markTyping(event.conversationId, event.userId);
+                } else {
+                    clearTyping(event.conversationId, event.userId);
+                }
             }
         );
 
-        return () => disconnectWebSocket();
+        return () => {
+            disconnectWebSocket();
+            // Clear any pending typing timers so they don't fire after unmount.
+            if (typingIdleTimerRef.current) clearTimeout(typingIdleTimerRef.current);
+            Object.values(typingExpiryTimersRef.current).forEach(clearTimeout);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
+
+    // ---- received typing: record + auto-expire ----
+
+    // Record that `userId` is typing in `conversationId`, and (re)arm a timer
+    // that clears them after TYPING_EXPIRE_MS if no fresh event arrives.
+    const markTyping = (conversationId, userId) => {
+        const key = `${conversationId}:${userId}`;
+
+        // Reset any existing expiry timer for this person.
+        if (typingExpiryTimersRef.current[key]) {
+            clearTimeout(typingExpiryTimersRef.current[key]);
+        }
+        typingExpiryTimersRef.current[key] = setTimeout(() => {
+            clearTyping(conversationId, userId);
+        }, TYPING_EXPIRE_MS);
+
+        setTyping((previous) => {
+            const forConvo = previous[conversationId] || {};
+            if (forConvo[userId]) return previous; // already showing; nothing to change
+            return { ...previous, [conversationId]: { ...forConvo, [userId]: true } };
+        });
+    };
+
+    // Remove `userId` from the typing set for `conversationId` (and kill its timer).
+    const clearTyping = (conversationId, userId) => {
+        const key = `${conversationId}:${userId}`;
+        if (typingExpiryTimersRef.current[key]) {
+            clearTimeout(typingExpiryTimersRef.current[key]);
+            delete typingExpiryTimersRef.current[key];
+        }
+        setTyping((previous) => {
+            const forConvo = previous[conversationId];
+            if (!forConvo || !forConvo[userId]) return previous;
+            const next = { ...forConvo };
+            delete next[userId];
+            return { ...previous, [conversationId]: next };
+        });
+    };
+
+    // ---- outbound typing: throttle + idle-stop ----
+
+    // Called on every keystroke in the composer.
+    const handleTypingActivity = () => {
+        const convId = openConversationIdRef.current;
+        if (!convId) return;
+
+        const now = Date.now();
+        // Send "typing: true" at most once per throttle window.
+        if (now - lastTypingSentRef.current > TYPING_THROTTLE_MS) {
+            sendTyping(convId, true);
+            lastTypingSentRef.current = now;
+        }
+
+        // (Re)start the idle timer: if no key for TYPING_IDLE_MS, send "stopped".
+        if (typingIdleTimerRef.current) clearTimeout(typingIdleTimerRef.current);
+        typingIdleTimerRef.current = setTimeout(() => {
+            sendTyping(convId, false);
+            lastTypingSentRef.current = 0; // allow an immediate "true" next time
+        }, TYPING_IDLE_MS);
+    };
+
+    // Immediately tell the server I've stopped typing in the given conversation.
+    const stopTypingNow = (conversationId) => {
+        if (typingIdleTimerRef.current) {
+            clearTimeout(typingIdleTimerRef.current);
+            typingIdleTimerRef.current = null;
+        }
+        if (lastTypingSentRef.current !== 0) {
+            sendTyping(conversationId, false);
+            lastTypingSentRef.current = 0;
+        }
+    };
 
     const loadContacts = async () => {
         try {
@@ -214,6 +341,8 @@ export default function ChatPage() {
 
     const openDirect = async (contact) => {
         const convId = dmConversationId(currentUserId, contact.userId);
+        // Leaving the previous chat: stop any typing signal there.
+        stopTypingNow(openConversationIdRef.current);
         setSelected({ type: "dm", userId: contact.userId, name: contact.name });
         openConversationIdRef.current = convId;
         setShowMembers(false);
@@ -240,6 +369,8 @@ export default function ChatPage() {
 
     const openGroup = async (group) => {
         const convId = groupConversationId(group.id);
+        // Leaving the previous chat: stop any typing signal there.
+        stopTypingNow(openConversationIdRef.current);
         setSelected({ type: "group", ...group });
         openConversationIdRef.current = convId;
         setShowMembers(false);
@@ -280,6 +411,8 @@ export default function ChatPage() {
             sendGroupMessage(selected.id, text);
         }
         setDraft("");
+        // Sending a message means I've stopped typing.
+        stopTypingNow(openConversationIdRef.current);
     };
 
     const handleGroupCreated = (group) => {
@@ -295,6 +428,11 @@ export default function ChatPage() {
         openConversationIdRef.current = null;
         setShowMembers(false);
     };
+
+    // The ids of people typing in the currently-open conversation.
+    const typingHere = selected
+        ? Object.keys(typing[openConversationIdRef.current] || {}).map(Number)
+        : [];
 
     return (
         <div style={styles.page}>
@@ -362,16 +500,15 @@ export default function ChatPage() {
                         <header style={styles.chatHeader}>
                             <div style={styles.headerInfo}>
                                 <span style={styles.headerName}>{selected.name}</span>
-                                {selected.type === "dm" && (
-                                    <span style={styles.presenceLine}>
-                                        {presenceLabel(presence[selected.userId])}
-                                    </span>
-                                )}
-                                {selected.type === "group" && (
-                                    <span style={styles.presenceLine}>
-                                        {groupHeaderLabel(memberNames, presence, currentUserId)}
-                                    </span>
-                                )}
+                                <span style={styles.presenceLine}>
+                                    {headerStatusLine(
+                                        selected,
+                                        typingHere,
+                                        memberNames,
+                                        presence,
+                                        currentUserId
+                                    )}
+                                </span>
                             </div>
                             {selected.type === "group" && (
                                 <button style={styles.infoBtn} onClick={() => setShowMembers((v) => !v)}>
@@ -416,7 +553,10 @@ export default function ChatPage() {
                             <input
                                 style={styles.input}
                                 value={draft}
-                                onChange={(e) => setDraft(e.target.value)}
+                                onChange={(e) => {
+                                    setDraft(e.target.value);
+                                    handleTypingActivity();
+                                }}
                                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
                                 placeholder="Type a message"
                             />
