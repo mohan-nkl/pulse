@@ -6,7 +6,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 let stompClient = null;
 
-export function connectWebSocket(onMessage, onStatus) {
+export function connectWebSocket(onMessage, onStatus, onPresence) {
     const token = getToken();
 
     stompClient = new Client({
@@ -22,6 +22,12 @@ export function connectWebSocket(onMessage, onStatus) {
             stompClient.subscribe("/user/queue/status", (frame) => {
                 if (onStatus) {
                     onStatus(JSON.parse(frame.body));
+                }
+            });
+
+            stompClient.subscribe("/topic/presence", (frame) => {
+                if (onPresence) {
+                    onPresence(JSON.parse(frame.body));
                 }
             });
 
