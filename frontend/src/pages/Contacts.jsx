@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import HomeButton from "../components/HomeButton";
 import {
     listContacts, searchContacts, addContact, addContactByUserId,
     removeContact, updateAlias, syncPhones,
@@ -189,7 +190,10 @@ export default function Contacts() {
 
                 {/* Header */}
                 <div style={styles.header}>
-                    <h1 style={styles.title}>Contacts</h1>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <HomeButton />
+                        <h1 style={styles.title}>Contacts</h1>
+                    </div>
                     <div style={styles.headerBtns}>
                         <button
                             style={styles.secondaryBtn}
