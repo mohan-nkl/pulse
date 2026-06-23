@@ -66,7 +66,9 @@ public class ConversationService {
                             s != null ? s.getStatus() : MessageStatus.SENT,
                             s != null ? s.getDeliveredCount() : 0,
                             s != null ? s.getReadCount() : 0,
-                            s != null ? s.getTotalRecipients() : 0);
+                            s != null ? s.getTotalRecipients() : 0,
+                            message.getType().name(),
+                            message.getMediaUrl());
                 })
                 .toList();
     }
