@@ -31,43 +31,40 @@ public class ChatService {
     private final MessageRepository messageRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final SimpMessagingTemplate messagingTemplate;
-    private final MessageStatusService messageStatusService;   // NEW: the ticks engine
+    private final MessageStatusService messageStatusService;
 
     @Transactional
     public ChatMessageResponse sendDirectMessage(Long senderId, SendMessageRequest request) {
 
-        validateDirect(request);
+        if (request.getReceiverId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Receiver id is required");
+        }
+        validateContent(request.getMessageType(), request.getContent(), request.getMediaUrl());
 
-        User sender = findUser(senderId, "Sender not found");
+        User sender   = findUser(senderId,                "Sender not found");
         User receiver = findUser(request.getReceiverId(), "Receiver not found");
 
         if (sender.getId().equals(receiver.getId())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot message yourself");
         }
 
-        String conversationId =
-                ConversationUtil.dmConversationId(sender.getId(), receiver.getId());
+        String conversationId = ConversationUtil.dmConversationId(sender.getId(), receiver.getId());
 
         Message message = new Message();
         message.setConversationId(conversationId);
         message.setConversationType(ConversationType.DIRECT);
         message.setSender(sender);
-        message.setType(MessageType.TEXT);
+        message.setType(parseMessageType(request.getMessageType())); // TEXT, IMAGE, etc.
         message.setContent(request.getContent());
+        message.setMediaUrl(request.getMediaUrl());                  // null for text messages
 
         Message saved = messageRepository.save(message);
-
         messageStatusService.createRecipientStatuses(saved, List.of(receiver.getId()));
 
-        ChatMessageResponse response = new ChatMessageResponse(
-                saved.getId(),
-                saved.getConversationId(),
-                sender.getId(),
-                saved.getContent(),
-                saved.getCreatedAt());
+        ChatMessageResponse response = toResponse(saved, sender.getId(), conversationId);
 
         messagingTemplate.convertAndSendToUser(receiver.getId().toString(), USER_QUEUE, response);
-        messagingTemplate.convertAndSendToUser(sender.getId().toString(), USER_QUEUE, response);
+        messagingTemplate.convertAndSendToUser(sender.getId().toString(),   USER_QUEUE, response);
 
         return response;
     }
@@ -75,7 +72,10 @@ public class ChatService {
     @Transactional
     public ChatMessageResponse sendGroupMessage(Long senderId, SendGroupMessageRequest request) {
 
-        validateGroup(request);
+        if (request.getGroupId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Group id is required");
+        }
+        validateContent(request.getMessageType(), request.getContent(), request.getMediaUrl());
 
         User sender = findUser(senderId, "Sender not found");
 
@@ -89,25 +89,21 @@ public class ChatService {
         message.setConversationId(conversationId);
         message.setConversationType(ConversationType.GROUP);
         message.setSender(sender);
-        message.setType(MessageType.TEXT);
+        message.setType(parseMessageType(request.getMessageType()));
         message.setContent(request.getContent());
+        message.setMediaUrl(request.getMediaUrl());
 
         Message saved = messageRepository.save(message);
 
-        List<GroupMember> members = groupMemberRepository.findByGroupId(request.getGroupId());
-
-        List<Long> recipientIds = members.stream()
-                .map(member -> member.getUser().getId())
-                .filter(userId -> !userId.equals(senderId))
+        List<GroupMember> members    = groupMemberRepository.findByGroupId(request.getGroupId());
+        List<Long>        recipients = members.stream()
+                .map(m -> m.getUser().getId())
+                .filter(id -> !id.equals(senderId))
                 .toList();
-        messageStatusService.createRecipientStatuses(saved, recipientIds);
 
-        ChatMessageResponse response = new ChatMessageResponse(
-                saved.getId(),
-                saved.getConversationId(),
-                sender.getId(),
-                saved.getContent(),
-                saved.getCreatedAt());
+        messageStatusService.createRecipientStatuses(saved, recipients);
+
+        ChatMessageResponse response = toResponse(saved, sender.getId(), conversationId);
 
         for (GroupMember member : members) {
             messagingTemplate.convertAndSendToUser(
@@ -117,22 +113,46 @@ public class ChatService {
         return response;
     }
 
-    private void validateDirect(SendMessageRequest request) {
-        if (request.getReceiverId() == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Receiver id is required");
-        }
-        if (request.getContent() == null || request.getContent().isBlank()) {
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    /**
+     * TEXT messages must have content.
+     * Media messages must have a mediaUrl (caption/content is optional).
+     */
+    private void validateContent(String messageType, String content, String mediaUrl) {
+        boolean isText = messageType == null || messageType.equals("TEXT");
+
+        if (isText && (content == null || content.isBlank())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Message content must not be empty");
+        }
+        if (!isText && (mediaUrl == null || mediaUrl.isBlank())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Media URL is required for media messages");
         }
     }
 
-    private void validateGroup(SendGroupMessageRequest request) {
-        if (request.getGroupId() == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Group id is required");
+    /**
+     * Safely turns "IMAGE", "VIDEO" etc. into the MessageType enum.
+     * Falls back to TEXT if the value is null or unrecognised.
+     */
+    private MessageType parseMessageType(String messageType) {
+        if (messageType == null) return MessageType.TEXT;
+        try {
+            return MessageType.valueOf(messageType);
+        } catch (IllegalArgumentException e) {
+            return MessageType.TEXT;
         }
-        if (request.getContent() == null || request.getContent().isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Message content must not be empty");
-        }
+    }
+
+    private ChatMessageResponse toResponse(Message saved, Long senderId, String conversationId) {
+        return new ChatMessageResponse(
+                saved.getId(),
+                conversationId,
+                senderId,
+                saved.getContent(),
+                saved.getCreatedAt(),
+                saved.getType().name(),  // "TEXT", "IMAGE", etc.
+                saved.getMediaUrl()      // null for text, URL for media
+        );
     }
 
     private User findUser(Long id, String notFoundMessage) {

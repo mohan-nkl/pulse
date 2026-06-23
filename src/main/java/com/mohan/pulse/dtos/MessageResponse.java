@@ -18,4 +18,6 @@ public class MessageResponse {
     private int deliveredCount;
     private int readCount;
     private int totalRecipients;
+    private String type;
+    private String mediaUrl;
 }

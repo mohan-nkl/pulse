@@ -1,7 +1,5 @@
 package com.mohan.pulse.dtos;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -15,9 +13,15 @@ import lombok.Setter;
 @NoArgsConstructor
 public class SendMessageRequest {
 
-    @NotNull(message = "Receiver id is required")
     private Long receiverId;
 
-    @NotBlank(message = "Message content must not be empty")
+    // For TEXT: the message text.
+    // For media: optional caption (can be empty).
     private String content;
+
+    // Defaults to TEXT if the frontend doesn't send this field.
+    private String messageType = "TEXT";
+
+    // Null for text messages. Has the file URL for media messages.
+    private String mediaUrl;
 }

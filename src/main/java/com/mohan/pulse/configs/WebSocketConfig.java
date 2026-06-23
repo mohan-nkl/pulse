@@ -16,6 +16,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private static final String[] ALLOWED_ORIGINS = {
             "http://localhost:5173"
+
     };
 
     private final WebSocketAuthInterceptor authInterceptor;
