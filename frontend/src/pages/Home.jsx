@@ -24,6 +24,10 @@ export default function Home() {
                 Open Chat
             </button>
 
+            <button style={styles.statusBtn} onClick={() => navigate("/status")}>
+                Status
+            </button>
+
             <button style={styles.contactsBtn} onClick={() => navigate("/contacts")}>
                 Contacts
             </button>
@@ -62,6 +66,15 @@ const styles = {
         borderRadius: "6px",
         cursor: "pointer",
         background: "#25d366",  // WhatsApp-ish green
+        color: "#fff",
+    },
+    statusBtn: {
+        padding: "10px 20px",
+        fontSize: "15px",
+        border: "none",
+        borderRadius: "6px",
+        cursor: "pointer",
+        background: "#005c4b",
         color: "#fff",
     },
     contactsBtn: {
