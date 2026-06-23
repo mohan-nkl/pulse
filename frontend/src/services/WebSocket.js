@@ -6,7 +6,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 let stompClient = null;
 
-export function connectWebSocket(onMessage, onStatus, onPresence) {
+export function connectWebSocket(onMessage, onStatus, onPresence, onTyping) {
     const token = getToken();
 
     stompClient = new Client({
@@ -28,6 +28,12 @@ export function connectWebSocket(onMessage, onStatus, onPresence) {
             stompClient.subscribe("/topic/presence", (frame) => {
                 if (onPresence) {
                     onPresence(JSON.parse(frame.body));
+                }
+            });
+
+            stompClient.subscribe("/user/queue/typing", (frame) => {
+                if (onTyping) {
+                    onTyping(JSON.parse(frame.body));
                 }
             });
 
@@ -79,6 +85,17 @@ export function sendRead(conversationId) {
     stompClient.publish({
         destination: "/app/chat.read",
         body: JSON.stringify({ conversationId }),
+    });
+}
+
+export function sendTyping(conversationId, typing) {
+    if (!stompClient || !stompClient.connected) {
+        return;
+    }
+
+    stompClient.publish({
+        destination: "/app/chat.typing",
+        body: JSON.stringify({ conversationId, typing }),
     });
 }
 
