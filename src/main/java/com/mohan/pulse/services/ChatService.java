@@ -183,7 +183,9 @@ public class ChatService {
                 reply.replyToContent(),
                 reply.replyToType(),
                 reply.replyToDeleted(),
-                statusPreview
+                statusPreview,
+                saved.isEdited(),    // false for a brand-new message
+                saved.isDeleted()    // false for a brand-new message
         );
     }
 

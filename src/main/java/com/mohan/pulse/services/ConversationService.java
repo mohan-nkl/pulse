@@ -6,9 +6,11 @@ import com.mohan.pulse.dtos.StatusPreviewDto;
 import com.mohan.pulse.dtos.ReactionEntry;
 import com.mohan.pulse.dtos.ReplySummary;
 import com.mohan.pulse.exceptions.ApiException;
+import com.mohan.pulse.models.DeletedMessage;
 import com.mohan.pulse.models.Message;
 import com.mohan.pulse.models.MessageStatus;
 import com.mohan.pulse.models.Status;
+import com.mohan.pulse.repositories.DeletedMessageRepository;
 import com.mohan.pulse.repositories.GroupMemberRepository;
 import com.mohan.pulse.repositories.MessageRepository;
 import com.mohan.pulse.repositories.StatusRepository;
@@ -31,6 +33,7 @@ public class ConversationService {
     private final MessageStatusService messageStatusService;
     private final StatusRepository statusRepository;
     private final ReactionService reactionService;
+    private final DeletedMessageRepository deletedMessageRepository;
 
     public List<MessageResponse> getDirectConversation(Long currentUserId, Long otherUserId) {
 
@@ -40,7 +43,7 @@ public class ConversationService {
         List<Message> messages = messageRepository
                 .findByConversationIdOrderByCreatedAtAsc(conversationId);
 
-        return toResponses(messages);
+        return toResponses(messages, currentUserId);
     }
 
     public List<MessageResponse> getGroupConversation(Long currentUserId, Long groupId) {
@@ -54,12 +57,19 @@ public class ConversationService {
         List<Message> messages = messageRepository
                 .findByConversationIdOrderByCreatedAtAsc(conversationId);
 
-        return toResponses(messages);
+        return toResponses(messages, currentUserId);
     }
 
-    private List<MessageResponse> toResponses(List<Message> messages) {
+    private List<MessageResponse> toResponses(List<Message> messages, Long currentUserId) {
 
         List<Long> messageIds = messages.stream().map(Message::getId).toList();
+
+        // Which of these did the current user delete-for-me? Filter them out.
+        Set<Long> hiddenForMe = deletedMessageRepository
+                .findByUser_IdAndMessage_IdIn(currentUserId, messageIds).stream()
+                .map(dm -> dm.getMessage().getId())
+                .collect(Collectors.toSet());
+
         Map<Long, MessageStatusUpdate> statusById =
                 messageStatusService.statusForMessages(messageIds);
         Map<Long, List<ReactionEntry>> reactionsById =
@@ -76,6 +86,7 @@ public class ConversationService {
                 .collect(Collectors.toMap(Status::getId, s -> s));
 
         return messages.stream()
+                .filter(message -> !hiddenForMe.contains(message.getId())) // drop delete-for-me
                 .map(message -> {
                     MessageStatusUpdate s = statusById.get(message.getId());
                     ReplySummary reply = ReplySummary.from(message.getReplyTo());
@@ -111,7 +122,9 @@ public class ConversationService {
                             reply.replyToType(),
                             reply.replyToDeleted(),
                             reactionsById.getOrDefault(message.getId(), List.of()),
-                            preview);
+                            preview,
+                            message.isEdited(),
+                            message.isDeleted());
                 })
                 .toList();
     }
