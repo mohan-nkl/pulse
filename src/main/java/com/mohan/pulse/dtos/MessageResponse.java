@@ -19,6 +19,7 @@ public class MessageResponse {
     private int deliveredCount;
     private int readCount;
     private int totalRecipients;
+
     private String type;
     private String mediaUrl;
 
@@ -30,4 +31,7 @@ public class MessageResponse {
     private boolean replyToDeleted;
 
     private List<ReactionEntry> reactions;
+
+    // Non-null only when this message is a status reply.
+    private StatusPreviewDto statusPreview;
 }

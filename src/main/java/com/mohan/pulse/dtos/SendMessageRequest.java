@@ -18,4 +18,7 @@ public class SendMessageRequest {
     private String mediaUrl;
 
     private Long replyToId;
+
+    // Optional — set only when this message is a status reply.
+    private Long replyToStatusId;
 }

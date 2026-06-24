@@ -54,6 +54,11 @@ public class Message {
 
     private boolean deleted;   // delete for everyone
 
+    // Set when this message is a reply to a status update.
+    // Stored as a plain Long (not a FK) so it survives status deletion gracefully.
+    @Column(name = "reply_to_status_id")
+    private Long replyToStatusId;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
