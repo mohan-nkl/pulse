@@ -1,8 +1,8 @@
 package com.mohan.pulse.services;
 
 import com.mohan.pulse.dtos.TypingEvent;
-import com.mohan.pulse.models.GroupMember;
-import com.mohan.pulse.repositories.GroupMemberRepository;
+import com.mohan.pulse.group.GroupMember;
+import com.mohan.pulse.group.GroupMemberRepository;
 import com.mohan.pulse.utils.ConversationUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;

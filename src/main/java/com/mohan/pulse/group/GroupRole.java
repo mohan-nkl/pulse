@@ -1,4 +1,4 @@
-package com.mohan.pulse.models;
+package com.mohan.pulse.group;
 
 public enum GroupRole {
 
