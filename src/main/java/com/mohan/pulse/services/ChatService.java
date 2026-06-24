@@ -1,6 +1,7 @@
 package com.mohan.pulse.services;
 
 import com.mohan.pulse.dtos.ChatMessageResponse;
+import com.mohan.pulse.dtos.ReplySummary;
 import com.mohan.pulse.dtos.SendGroupMessageRequest;
 import com.mohan.pulse.dtos.SendMessageRequest;
 import com.mohan.pulse.dtos.StatusPreviewDto;
@@ -39,24 +40,28 @@ public class ChatService {
     @Transactional
     public ChatMessageResponse sendDirectMessage(Long senderId, SendMessageRequest request) {
 
-        validateDirect(request);
+        if (request.getReceiverId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Receiver id is required");
+        }
+        validateContent(request.getMessageType(), request.getContent(), request.getMediaUrl());
 
-        User sender = findUser(senderId, "Sender not found");
+        User sender   = findUser(senderId,                "Sender not found");
         User receiver = findUser(request.getReceiverId(), "Receiver not found");
 
         if (sender.getId().equals(receiver.getId())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot message yourself");
         }
 
-        String conversationId =
-                ConversationUtil.dmConversationId(sender.getId(), receiver.getId());
+        String conversationId = ConversationUtil.dmConversationId(sender.getId(), receiver.getId());
 
         Message message = new Message();
         message.setConversationId(conversationId);
         message.setConversationType(ConversationType.DIRECT);
         message.setSender(sender);
-        message.setType(MessageType.TEXT);
+        message.setType(parseMessageType(request.getMessageType()));
         message.setContent(request.getContent());
+        message.setMediaUrl(request.getMediaUrl());
+        message.setReplyTo(resolveReplyTo(request.getReplyToId(), conversationId));
 
         // Attach status reference if this is a status reply
         if (request.getReplyToStatusId() != null) {
@@ -64,22 +69,13 @@ public class ChatService {
         }
 
         Message saved = messageRepository.save(message);
-
         messageStatusService.createRecipientStatuses(saved, List.of(receiver.getId()));
 
-        // Build a status preview to include in the response (null for regular messages)
-        StatusPreviewDto statusPreview = buildStatusPreview(request.getReplyToStatusId());
-
-        ChatMessageResponse response = new ChatMessageResponse(
-                saved.getId(),
-                saved.getConversationId(),
-                sender.getId(),
-                saved.getContent(),
-                saved.getCreatedAt(),
-                statusPreview);
+        ChatMessageResponse response = toResponse(saved, sender.getId(), conversationId,
+                buildStatusPreview(request.getReplyToStatusId()));
 
         messagingTemplate.convertAndSendToUser(receiver.getId().toString(), USER_QUEUE, response);
-        messagingTemplate.convertAndSendToUser(sender.getId().toString(), USER_QUEUE, response);
+        messagingTemplate.convertAndSendToUser(sender.getId().toString(),   USER_QUEUE, response);
 
         return response;
     }
@@ -87,7 +83,10 @@ public class ChatService {
     @Transactional
     public ChatMessageResponse sendGroupMessage(Long senderId, SendGroupMessageRequest request) {
 
-        validateGroup(request);
+        if (request.getGroupId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Group id is required");
+        }
+        validateContent(request.getMessageType(), request.getContent(), request.getMediaUrl());
 
         User sender = findUser(senderId, "Sender not found");
 
@@ -101,25 +100,22 @@ public class ChatService {
         message.setConversationId(conversationId);
         message.setConversationType(ConversationType.GROUP);
         message.setSender(sender);
-        message.setType(MessageType.TEXT);
+        message.setType(parseMessageType(request.getMessageType()));
         message.setContent(request.getContent());
+        message.setMediaUrl(request.getMediaUrl());
+        message.setReplyTo(resolveReplyTo(request.getReplyToId(), conversationId));
 
         Message saved = messageRepository.save(message);
 
-        List<GroupMember> members = groupMemberRepository.findByGroupId(request.getGroupId());
-
-        List<Long> recipientIds = members.stream()
-                .map(member -> member.getUser().getId())
-                .filter(userId -> !userId.equals(senderId))
+        List<GroupMember> members    = groupMemberRepository.findByGroupId(request.getGroupId());
+        List<Long>        recipients = members.stream()
+                .map(m -> m.getUser().getId())
+                .filter(id -> !id.equals(senderId))
                 .toList();
-        messageStatusService.createRecipientStatuses(saved, recipientIds);
 
-        ChatMessageResponse response = new ChatMessageResponse(
-                saved.getId(),
-                saved.getConversationId(),
-                sender.getId(),
-                saved.getContent(),
-                saved.getCreatedAt());
+        messageStatusService.createRecipientStatuses(saved, recipients);
+
+        ChatMessageResponse response = toResponse(saved, sender.getId(), conversationId, null);
 
         for (GroupMember member : members) {
             messagingTemplate.convertAndSendToUser(
@@ -129,22 +125,59 @@ public class ChatService {
         return response;
     }
 
-    private void validateDirect(SendMessageRequest request) {
-        if (request.getReceiverId() == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Receiver id is required");
-        }
-        if (request.getContent() == null || request.getContent().isBlank()) {
+    private void validateContent(String messageType, String content, String mediaUrl) {
+        boolean isText = messageType == null || messageType.equals("TEXT");
+
+        if (isText && (content == null || content.isBlank())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Message content must not be empty");
+        }
+        if (!isText && (mediaUrl == null || mediaUrl.isBlank())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Media URL is required for media messages");
         }
     }
 
-    private void validateGroup(SendGroupMessageRequest request) {
-        if (request.getGroupId() == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Group id is required");
+    private Message resolveReplyTo(Long replyToId, String conversationId) {
+        if (replyToId == null) {
+            return null;
         }
-        if (request.getContent() == null || request.getContent().isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Message content must not be empty");
+        Message original = messageRepository.findById(replyToId)
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
+                        "The message you are replying to does not exist."));
+        if (!original.getConversationId().equals(conversationId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "You can only reply to messages in the same conversation.");
         }
+        return original;
+    }
+
+    private MessageType parseMessageType(String messageType) {
+        if (messageType == null) return MessageType.TEXT;
+        try {
+            return MessageType.valueOf(messageType);
+        } catch (IllegalArgumentException e) {
+            return MessageType.TEXT;
+        }
+    }
+
+    private ChatMessageResponse toResponse(Message saved, Long senderId, String conversationId,
+                                           StatusPreviewDto statusPreview) {
+        ReplySummary reply = ReplySummary.from(saved.getReplyTo());
+        return new ChatMessageResponse(
+                saved.getId(),
+                conversationId,
+                senderId,
+                saved.getContent(),
+                saved.getCreatedAt(),
+                saved.getType().name(),
+                saved.getMediaUrl(),
+                reply.replyToId(),
+                reply.replyToSenderId(),
+                reply.replyToSenderName(),
+                reply.replyToContent(),
+                reply.replyToType(),
+                reply.replyToDeleted(),
+                statusPreview
+        );
     }
 
     private User findUser(Long id, String notFoundMessage) {
