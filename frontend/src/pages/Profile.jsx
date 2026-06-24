@@ -75,8 +75,9 @@ export default function Profile() {
 
     return (
         <div style={styles.container}>
+            <style>{css}</style>
             <div style={styles.card}>
-                <HomeButton style={{ marginBottom: "16px" }} />
+                <HomeButton style={{ marginBottom: "16px", alignSelf: "flex-start" }} />
                 <h1 style={styles.title}>My Profile</h1>
 
                 {error && <div style={styles.error}>{error}</div>}
@@ -85,7 +86,7 @@ export default function Profile() {
                 {/* Avatar */}
                 <div style={styles.avatarWrapper}>
                     <img
-                        src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || "U")}&size=96`}
+                        src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || "U")}&size=96&background=00a884&color=fff`}
                         alt="avatar"
                         style={styles.avatar}
                     />
@@ -124,12 +125,12 @@ export default function Profile() {
                             <span style={styles.detailLabel}>Last seen</span>
                             <span style={styles.detailValue}>{formatDate(profile.lastSeen)}</span>
                         </div>
-                        <div style={styles.detailRow}>
+                        <div style={styles.detailRowLast}>
                             <span style={styles.detailLabel}>Member since</span>
                             <span style={styles.detailValue}>{formatDate(profile.createdAt)}</span>
                         </div>
 
-                        <button style={styles.button} onClick={() => setEditMode(true)}>
+                        <button style={styles.primaryBtn} className="pulse-btn" onClick={() => setEditMode(true)}>
                             Edit Profile
                         </button>
                     </div>
@@ -171,7 +172,7 @@ export default function Profile() {
                             >
                                 Cancel
                             </button>
-                            <button style={styles.saveBtn} type="submit" disabled={saving}>
+                            <button style={styles.saveBtn} className="pulse-btn" type="submit" disabled={saving}>
                                 {saving ? "Saving..." : "Save"}
                             </button>
                         </div>
@@ -183,99 +184,140 @@ export default function Profile() {
 }
 
 const styles = {
-    center: { display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" },
+    center: {
+        display: "flex", justifyContent: "center", alignItems: "center",
+        minHeight: "100vh", background: "#0b141a", color: "#e9edef",
+    },
     container: {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
         minHeight: "100vh",
+        padding: "24px",
+        boxSizing: "border-box",
+        background:
+            "radial-gradient(1200px 500px at 50% -10%, rgba(0,168,132,0.10), transparent 60%), #0b141a",
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     },
     card: {
         display: "flex",
         flexDirection: "column",
-        width: "340px",
-        padding: "24px",
-        border: "1px solid #ddd",
-        borderRadius: "8px",
+        width: "360px",
+        maxWidth: "100%",
+        padding: "28px 24px",
+        background: "#111b21",
+        border: "1px solid #1f2c33",
+        borderRadius: "18px",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+        color: "#e9edef",
     },
-    title: { fontSize: "20px", marginBottom: "16px", textAlign: "center" },
+    title: { fontSize: "22px", fontWeight: 600, margin: "0 0 18px", textAlign: "center" },
     avatarWrapper: {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        marginBottom: "20px",
-        gap: "8px",
+        marginBottom: "22px",
+        gap: "10px",
     },
     avatar: {
-        width: "80px",
-        height: "80px",
+        width: "92px",
+        height: "92px",
         borderRadius: "50%",
         objectFit: "cover",
-        border: "1px solid #ddd",
+        border: "2px solid #00a884",
     },
     avatarBtn: {
         fontSize: "13px",
         background: "none",
         border: "none",
-        color: "#1a73e8",
+        color: "#38d39f",
         cursor: "pointer",
         padding: 0,
+        fontWeight: 500,
     },
-    detailsSection: { display: "flex", flexDirection: "column", gap: "10px" },
+    detailsSection: { display: "flex", flexDirection: "column", gap: "2px" },
     detailRow: {
         display: "flex",
         justifyContent: "space-between",
-        padding: "10px 0",
-        borderBottom: "1px solid #f0f0f0",
+        alignItems: "center",
+        padding: "13px 0",
+        borderBottom: "1px solid #1f2c33",
+        gap: "12px",
     },
-    detailLabel: { fontSize: "13px", color: "#888" },
-    detailValue: { fontSize: "14px", fontWeight: "500", textAlign: "right", maxWidth: "200px", wordBreak: "break-word" },
-    label: { fontSize: "14px", color: "#555" },
+    detailRowLast: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "13px 0",
+        gap: "12px",
+    },
+    detailLabel: { fontSize: "13px", color: "#8696a0" },
+    detailValue: { fontSize: "14px", fontWeight: 500, textAlign: "right", maxWidth: "220px", wordBreak: "break-word" },
+    label: { fontSize: "13px", color: "#8696a0", marginTop: "10px", marginBottom: "4px" },
     input: {
-        padding: "10px",
+        padding: "11px 12px",
         fontSize: "14px",
-        border: "1px solid #ccc",
-        borderRadius: "6px",
+        background: "#0b141a",
+        border: "1px solid #2a3942",
+        borderRadius: "9px",
+        color: "#e9edef",
         boxSizing: "border-box",
+        outline: "none",
     },
-    button: {
-        marginTop: "8px",
-        padding: "10px",
+    primaryBtn: {
+        marginTop: "18px",
+        padding: "12px",
         fontSize: "15px",
+        fontWeight: 600,
         border: "none",
-        borderRadius: "6px",
+        borderRadius: "10px",
         cursor: "pointer",
+        background: "#00a884",
+        color: "#0b141a",
     },
-    buttonRow: { display: "flex", gap: "10px", marginTop: "8px" },
+    buttonRow: { display: "flex", gap: "10px", marginTop: "18px" },
     cancelBtn: {
         flex: 1,
-        padding: "10px",
+        padding: "12px",
         fontSize: "14px",
-        border: "1px solid #ccc",
-        borderRadius: "6px",
+        fontWeight: 500,
+        border: "1px solid #2a3942",
+        borderRadius: "10px",
         cursor: "pointer",
-        background: "#fff",
+        background: "transparent",
+        color: "#e9edef",
     },
     saveBtn: {
         flex: 1,
-        padding: "10px",
+        padding: "12px",
         fontSize: "14px",
+        fontWeight: 600,
         border: "none",
-        borderRadius: "6px",
+        borderRadius: "10px",
         cursor: "pointer",
+        background: "#00a884",
+        color: "#0b141a",
     },
     error: {
-        background: "#fdecea",
-        color: "#b71c1c",
-        padding: "10px",
-        borderRadius: "6px",
-        fontSize: "14px",
+        background: "rgba(241,92,109,0.12)",
+        color: "#f7919c",
+        padding: "10px 12px",
+        borderRadius: "9px",
+        fontSize: "13.5px",
+        marginBottom: "12px",
     },
     successBox: {
-        background: "#e8f5e9",
-        color: "#2e7d32",
-        padding: "10px",
-        borderRadius: "6px",
-        fontSize: "14px",
+        background: "rgba(0,168,132,0.14)",
+        color: "#38d39f",
+        padding: "10px 12px",
+        borderRadius: "9px",
+        fontSize: "13.5px",
+        marginBottom: "12px",
     },
 };
+
+const css = `
+.pulse-btn:hover { background: #06cf7f !important; }
+.pulse-btn:disabled { opacity: 0.6; cursor: default; }
+input::placeholder { color: #5b6b74; }
+`;
