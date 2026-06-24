@@ -1,6 +1,7 @@
 package com.mohan.pulse.services;
 
 import com.mohan.pulse.dtos.ChatMessageResponse;
+import com.mohan.pulse.dtos.ReplySummary;
 import com.mohan.pulse.dtos.SendGroupMessageRequest;
 import com.mohan.pulse.dtos.SendMessageRequest;
 import com.mohan.pulse.exceptions.ApiException;
@@ -54,9 +55,10 @@ public class ChatService {
         message.setConversationId(conversationId);
         message.setConversationType(ConversationType.DIRECT);
         message.setSender(sender);
-        message.setType(parseMessageType(request.getMessageType())); // TEXT, IMAGE, etc.
+        message.setType(parseMessageType(request.getMessageType()));
         message.setContent(request.getContent());
-        message.setMediaUrl(request.getMediaUrl());                  // null for text messages
+        message.setMediaUrl(request.getMediaUrl());
+        message.setReplyTo(resolveReplyTo(request.getReplyToId(), conversationId));
 
         Message saved = messageRepository.save(message);
         messageStatusService.createRecipientStatuses(saved, List.of(receiver.getId()));
@@ -92,6 +94,7 @@ public class ChatService {
         message.setType(parseMessageType(request.getMessageType()));
         message.setContent(request.getContent());
         message.setMediaUrl(request.getMediaUrl());
+        message.setReplyTo(resolveReplyTo(request.getReplyToId(), conversationId));
 
         Message saved = messageRepository.save(message);
 
@@ -113,12 +116,6 @@ public class ChatService {
         return response;
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────────────
-
-    /**
-     * TEXT messages must have content.
-     * Media messages must have a mediaUrl (caption/content is optional).
-     */
     private void validateContent(String messageType, String content, String mediaUrl) {
         boolean isText = messageType == null || messageType.equals("TEXT");
 
@@ -130,10 +127,20 @@ public class ChatService {
         }
     }
 
-    /**
-     * Safely turns "IMAGE", "VIDEO" etc. into the MessageType enum.
-     * Falls back to TEXT if the value is null or unrecognised.
-     */
+    private Message resolveReplyTo(Long replyToId, String conversationId) {
+        if (replyToId == null) {
+            return null;
+        }
+        Message original = messageRepository.findById(replyToId)
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
+                        "The message you are replying to does not exist."));
+        if (!original.getConversationId().equals(conversationId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "You can only reply to messages in the same conversation.");
+        }
+        return original;
+    }
+
     private MessageType parseMessageType(String messageType) {
         if (messageType == null) return MessageType.TEXT;
         try {
@@ -144,14 +151,21 @@ public class ChatService {
     }
 
     private ChatMessageResponse toResponse(Message saved, Long senderId, String conversationId) {
+        ReplySummary reply = ReplySummary.from(saved.getReplyTo());
         return new ChatMessageResponse(
                 saved.getId(),
                 conversationId,
                 senderId,
                 saved.getContent(),
                 saved.getCreatedAt(),
-                saved.getType().name(),  // "TEXT", "IMAGE", etc.
-                saved.getMediaUrl()      // null for text, URL for media
+                saved.getType().name(),
+                saved.getMediaUrl(),
+                reply.replyToId(),
+                reply.replyToSenderId(),
+                reply.replyToSenderName(),
+                reply.replyToContent(),
+                reply.replyToType(),
+                reply.replyToDeleted()
         );
     }
 
