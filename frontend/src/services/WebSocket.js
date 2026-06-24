@@ -6,7 +6,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 let stompClient = null;
 
-export function connectWebSocket(onMessage, onStatus, onPresence, onTyping) {
+export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onReaction) {
     const token = getToken();
 
     stompClient = new Client({
@@ -37,6 +37,12 @@ export function connectWebSocket(onMessage, onStatus, onPresence, onTyping) {
                 }
             });
 
+            stompClient.subscribe("/user/queue/reactions", (frame) => {
+                if (onReaction) {
+                    onReaction(JSON.parse(frame.body));
+                }
+            });
+
             sendDelivered(null);
         },
     });
@@ -44,34 +50,21 @@ export function connectWebSocket(onMessage, onStatus, onPresence, onTyping) {
     stompClient.activate();
 }
 
-/**
- * Send a direct message to another user.
- *
- * Text message:
- *   sendMessage(5, "hello")
- *
- * Media message (after uploading the file first):
- *   sendMessage(5, "", "IMAGE", "http://localhost:8080/media/abc.jpg")
- */
-export function sendMessage(receiverId, content, messageType = "TEXT", mediaUrl = null) {
+export function sendMessage(receiverId, content, messageType = "TEXT", mediaUrl = null, replyToId = null) {
     if (!stompClient || !stompClient.connected) return;
 
     stompClient.publish({
         destination: "/app/chat.send",
-        body: JSON.stringify({ receiverId, content, messageType, mediaUrl }),
+        body: JSON.stringify({ receiverId, content, messageType, mediaUrl, replyToId }),
     });
 }
 
-/**
- * Send a message to a group.
- * Same as sendMessage() but with groupId instead of receiverId.
- */
-export function sendGroupMessage(groupId, content, messageType = "TEXT", mediaUrl = null) {
+export function sendGroupMessage(groupId, content, messageType = "TEXT", mediaUrl = null, replyToId = null) {
     if (!stompClient || !stompClient.connected) return;
 
     stompClient.publish({
         destination: "/app/group.send",
-        body: JSON.stringify({ groupId, content, messageType, mediaUrl }),
+        body: JSON.stringify({ groupId, content, messageType, mediaUrl, replyToId }),
     });
 }
 
