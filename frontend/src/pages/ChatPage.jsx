@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useNotification } from "../context/NotificationContext";
+import NotificationToast from "../components/NotificationToast";
 import HomeButton from "../components/HomeButton";
 import client from "../api/client";
 import { uploadMedia, getMessageType } from "../api/mediaApi";
@@ -265,9 +267,11 @@ function ReactionPills({ reactions, currentUserId, onToggle }) {
 export default function ChatPage() {
     const { user } = useAuth();
     const currentUserId = user?.userId;
+    const { handleNotification, clearConversation, unreadPerConversation } = useNotification();
 
     const [contacts, setContacts] = useState([]);
     const [groups, setGroups] = useState([]);
+    const [activeToast, setActiveToast] = useState(null);
 
     // The open conversation: either { type: "dm", userId, name }
     // or a group object { type: "group", id, name, myRole, ... }. null = nothing open.
@@ -342,6 +346,13 @@ export default function ChatPage() {
     // Keep the id ref in sync with the logged-in user.
     useEffect(() => {
         currentUserIdRef.current = currentUserId;
+    }, [currentUserId]);
+
+    // Ask for browser notification permission once after login.
+    useEffect(() => {
+        if (currentUserId && "Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
     }, [currentUserId]);
 
     // Persist the selected chat so a reload restores it.
@@ -453,6 +464,19 @@ export default function ChatPage() {
                             : m
                     )
                 );
+            },
+            (notification) => {
+                // New-message notification. If I'm already in this conversation, ignore.
+                if (notification.conversationId === openConversationIdRef.current) return;
+
+                handleNotification(notification);
+                setActiveToast(notification);
+                if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+                    new Notification(notification.senderName, {
+                        body: notification.preview,
+                        icon: "/favicon.svg",
+                    });
+                }
             }
         );
 
@@ -653,6 +677,7 @@ export default function ChatPage() {
 
         // Opening a chat means I've read everything in it.
         markReadIfFocused(convId);
+        clearConversation(convId); // zero its unread badge
 
         // Refresh this person's presence for the header.
         try {
@@ -694,6 +719,7 @@ export default function ChatPage() {
 
         // Opening the group means I've read everything in it.
         markReadIfFocused(convId);
+        clearConversation(convId); // zero its unread badge
     };
 
     // ---- replies ----
@@ -839,47 +865,61 @@ export default function ChatPage() {
 
                 <p style={styles.sectionLabel}>Groups</p>
                 {groups.length === 0 && <p style={styles.empty}>No groups yet.</p>}
-                {groups.map((group) => (
-                    <button
-                        key={`g-${group.id}`}
-                        style={{
-                            ...styles.item,
-                            ...(selected?.type === "group" && selected.id === group.id
-                                ? styles.itemActive
-                                : {}),
-                        }}
-                        onClick={() => openGroup(group)}
-                    >
-                        # {group.name}
-                    </button>
-                ))}
+                {groups.map((group) => {
+                    const gConvId = groupConversationId(group.id);
+                    const unread = unreadPerConversation[gConvId] || 0;
+                    return (
+                        <button
+                            key={`g-${group.id}`}
+                            style={{
+                                ...styles.item,
+                                ...(selected?.type === "group" && selected.id === group.id
+                                    ? styles.itemActive
+                                    : {}),
+                            }}
+                            onClick={() => openGroup(group)}
+                        >
+                        <span style={styles.itemRow}>
+                            <span># {group.name}</span>
+                            {unread > 0 && <span style={styles.unreadBadge}>{unread}</span>}
+                        </span>
+                        </button>
+                    );
+                })}
 
                 <p style={styles.sectionLabel}>Chats</p>
                 {contacts.length === 0 && <p style={styles.empty}>No contacts yet.</p>}
-                {contacts.map((contact) => (
-                    <button
-                        key={`c-${contact.userId}`}
-                        style={{
-                            ...styles.item,
-                            ...(selected?.type === "dm" && selected.userId === contact.userId
-                                ? styles.itemActive
-                                : {}),
-                        }}
-                        onClick={() => openDirect(contact)}
-                    >
+                {contacts.map((contact) => {
+                    const cConvId = dmConversationId(currentUserId, contact.userId);
+                    const unread = unreadPerConversation[cConvId] || 0;
+                    return (
+                        <button
+                            key={`c-${contact.userId}`}
+                            style={{
+                                ...styles.item,
+                                ...(selected?.type === "dm" && selected.userId === contact.userId
+                                    ? styles.itemActive
+                                    : {}),
+                            }}
+                            onClick={() => openDirect(contact)}
+                        >
                         <span style={styles.itemRow}>
                             <span>{contact.name || "Unknown"}</span>
-                            <span
-                                style={{
-                                    ...styles.dot,
-                                    background: presence[contact.userId]?.online
-                                        ? "#00d96a"
-                                        : "#3b4a54",
-                                }}
-                            />
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                                {unread > 0 && <span style={styles.unreadBadge}>{unread}</span>}
+                                <span
+                                    style={{
+                                        ...styles.dot,
+                                        background: presence[contact.userId]?.online
+                                            ? "#00d96a"
+                                            : "#3b4a54",
+                                    }}
+                                />
+                            </span>
                         </span>
-                    </button>
-                ))}
+                        </button>
+                    );
+                })}
             </aside>
 
             <main style={styles.chat}>
@@ -941,30 +981,30 @@ export default function ChatPage() {
                                                 </div>
                                             )}
 
-                                        {/* Status reply preview — shown above the reply text */}
-                                        {message.statusPreview && (
-                                            <div style={styles.statusPreview}>
-                                                {message.statusPreview.mediaUrl && (
-                                                    <img
-                                                        src={message.statusPreview.mediaUrl}
-                                                        alt="status"
-                                                        style={styles.previewImg}
-                                                    />
-                                                )}
-                                                <div style={styles.previewBody}>
+                                            {/* Status reply preview — shown above the reply text */}
+                                            {message.statusPreview && (
+                                                <div style={styles.statusPreview}>
+                                                    {message.statusPreview.mediaUrl && (
+                                                        <img
+                                                            src={message.statusPreview.mediaUrl}
+                                                            alt="status"
+                                                            style={styles.previewImg}
+                                                        />
+                                                    )}
+                                                    <div style={styles.previewBody}>
                                                     <span style={styles.previewAuthor}>
                                                         {message.statusPreview.authorName}'s status
                                                     </span>
-                                                    {message.statusPreview.content && (
-                                                        <span style={styles.previewText}>
+                                                        {message.statusPreview.content && (
+                                                            <span style={styles.previewText}>
                                                             {message.statusPreview.content.length > 60
                                                                 ? message.statusPreview.content.slice(0, 60) + "…"
                                                                 : message.statusPreview.content}
                                                         </span>
-                                                    )}
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
 
                                             {/* reply quote, only on reply messages */}
                                             <QuotedMessage
@@ -1148,6 +1188,24 @@ export default function ChatPage() {
             )}
 
             <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
+
+            <NotificationToast
+                notification={activeToast}
+                onClose={() => setActiveToast(null)}
+                onClick={(conversationId) => {
+                    if (conversationId?.startsWith("dm:")) {
+                        const parts = conversationId.split(":");
+                        const otherId = Number(parts[1]) === currentUserId ? Number(parts[2]) : Number(parts[1]);
+                        const contact = contacts.find((c) => c.userId === otherId);
+                        if (contact) openDirect(contact);
+                    } else if (conversationId?.startsWith("group:")) {
+                        const groupId = Number(conversationId.split(":")[1]);
+                        const group = groups.find((g) => g.id === groupId);
+                        if (group) openGroup(group);
+                    }
+                    setActiveToast(null);
+                }}
+            />
         </div>
     );
 }
@@ -1204,6 +1262,19 @@ const styles = {
         height: "9px",
         borderRadius: "50%",
         flex: "0 0 auto",
+    },
+    unreadBadge: {
+        minWidth: "18px",
+        height: "18px",
+        padding: "0 5px",
+        borderRadius: "9px",
+        background: "#00a884",
+        color: "#fff",
+        fontSize: "11px",
+        fontWeight: 700,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
     },
     chat: { flex: 1, display: "flex", flexDirection: "column", background: "#0b141a" },
     placeholder: {

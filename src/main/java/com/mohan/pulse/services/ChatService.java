@@ -36,6 +36,7 @@ public class ChatService {
     private final SimpMessagingTemplate messagingTemplate;
     private final MessageStatusService messageStatusService;
     private final StatusRepository statusRepository;
+    private final NotificationService notificationService;
 
     @Transactional
     public ChatMessageResponse sendDirectMessage(Long senderId, SendMessageRequest request) {
@@ -76,6 +77,8 @@ public class ChatService {
 
         messagingTemplate.convertAndSendToUser(receiver.getId().toString(), USER_QUEUE, response);
         messagingTemplate.convertAndSendToUser(sender.getId().toString(),   USER_QUEUE, response);
+
+        notificationService.sendNotification(receiver.getId(), conversationId, sender.getName(), request.getContent());
 
         return response;
     }
@@ -120,6 +123,10 @@ public class ChatService {
         for (GroupMember member : members) {
             messagingTemplate.convertAndSendToUser(
                     member.getUser().getId().toString(), USER_QUEUE, response);
+        }
+
+        for (Long recipientId : recipients) {
+            notificationService.sendNotification(recipientId, conversationId, sender.getName(), request.getContent());
         }
 
         return response;
@@ -185,7 +192,6 @@ public class ChatService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, notFoundMessage));
     }
 
-    // Looks up the status and returns a compact preview, or null if deleted/not found.
     private StatusPreviewDto buildStatusPreview(Long statusId) {
         if (statusId == null) return null;
         return statusRepository.findById(statusId)

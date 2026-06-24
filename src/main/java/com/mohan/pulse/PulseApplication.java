@@ -10,5 +10,7 @@ public class PulseApplication {
 		SpringApplication.run(PulseApplication.class, args);
 
 
+
+
 	}
 }

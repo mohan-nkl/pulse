@@ -6,7 +6,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 let stompClient = null;
 
-export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onReaction) {
+export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onReaction, onNotification) {
     const token = getToken();
 
     stompClient = new Client({
@@ -43,6 +43,12 @@ export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onRe
                 }
             });
 
+            stompClient.subscribe("/user/queue/notifications", (frame) => {
+                if (onNotification) {
+                    onNotification(JSON.parse(frame.body));
+                }
+            });
+
             sendDelivered(null);
         },
     });
@@ -50,6 +56,18 @@ export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onRe
     stompClient.activate();
 }
 
+/**
+ * Send a direct message to another user.
+ *
+ * Text message:
+ *   sendMessage(5, "hello")
+ *
+ * Media message (after uploading the file first):
+ *   sendMessage(5, "", "IMAGE", "http://localhost:8080/media/abc.jpg")
+ *
+ * Reply (text or media): pass the id of the message being replied to:
+ *   sendMessage(5, "haha yes", "TEXT", null, 42)
+ */
 export function sendMessage(receiverId, content, messageType = "TEXT", mediaUrl = null, replyToId = null) {
     if (!stompClient || !stompClient.connected) return;
 
@@ -59,6 +77,10 @@ export function sendMessage(receiverId, content, messageType = "TEXT", mediaUrl 
     });
 }
 
+/**
+ * Send a message to a group.
+ * Same as sendMessage() but with groupId instead of receiverId.
+ */
 export function sendGroupMessage(groupId, content, messageType = "TEXT", mediaUrl = null, replyToId = null) {
     if (!stompClient || !stompClient.connected) return;
 
