@@ -33,7 +33,7 @@ public interface MessageRecipientStatusRepository
         SELECT mrs.message.conversationId, COUNT(mrs)
         FROM MessageRecipientStatus mrs
         WHERE mrs.recipient.id = :userId
-          AND mrs.status <> com.mohan.pulse.models.MessageStatus.READ
+          AND mrs.status <> com.mohan.pulse.message.MessageStatus.READ
         GROUP BY mrs.message.conversationId
         """)
     List<Object[]> countUnreadPerConversation(@Param("userId") Long userId);
