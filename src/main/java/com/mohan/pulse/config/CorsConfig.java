@@ -1,4 +1,4 @@
-package com.mohan.pulse.configs;
+package com.mohan.pulse.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

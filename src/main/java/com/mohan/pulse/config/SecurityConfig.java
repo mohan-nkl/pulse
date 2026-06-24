@@ -1,4 +1,4 @@
-package com.mohan.pulse.configs;
+package com.mohan.pulse.config;
 
 import com.mohan.pulse.auth.JwtAuthFilter;
 import com.mohan.pulse.auth.JwtAuthenticationEntryPoint;
