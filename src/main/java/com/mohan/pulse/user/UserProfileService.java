@@ -2,7 +2,7 @@ package com.mohan.pulse.user;
 
 import com.mohan.pulse.user.dtos.UpdateProfileRequest;
 import com.mohan.pulse.user.dtos.UserProfileResponse;
-import com.mohan.pulse.exceptions.ApiException;
+import com.mohan.pulse.common.ApiException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;

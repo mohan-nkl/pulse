@@ -1,6 +1,6 @@
 package com.mohan.pulse.user;
 
-import com.mohan.pulse.dtos.ApiResponse;
+import com.mohan.pulse.common.ApiResponse;
 import com.mohan.pulse.user.dtos.PresenceUpdate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;

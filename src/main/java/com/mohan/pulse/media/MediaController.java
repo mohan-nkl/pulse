@@ -1,6 +1,6 @@
 package com.mohan.pulse.media;
 
-import com.mohan.pulse.dtos.ApiResponse;
+import com.mohan.pulse.common.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

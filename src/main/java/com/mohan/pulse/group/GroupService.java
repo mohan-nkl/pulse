@@ -4,7 +4,7 @@ import com.mohan.pulse.group.dtos.AddMembersRequest;
 import com.mohan.pulse.group.dtos.CreateGroupRequest;
 import com.mohan.pulse.group.dtos.GroupMemberResponse;
 import com.mohan.pulse.group.dtos.GroupResponse;
-import com.mohan.pulse.exceptions.ApiException;
+import com.mohan.pulse.common.ApiException;
 import com.mohan.pulse.user.User;
 import com.mohan.pulse.user.UserRepository;
 import lombok.RequiredArgsConstructor;

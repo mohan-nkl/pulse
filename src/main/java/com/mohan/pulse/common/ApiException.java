@@ -1,4 +1,4 @@
-package com.mohan.pulse.exceptions;
+package com.mohan.pulse.common;
 
 import org.springframework.http.HttpStatus;
 

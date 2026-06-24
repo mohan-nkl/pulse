@@ -6,7 +6,7 @@ import com.mohan.pulse.message.dtos.SendMessageRequest;
 import com.mohan.pulse.status.dtos.StatusReplyRequest;
 import com.mohan.pulse.status.dtos.StatusResponse;
 import com.mohan.pulse.status.dtos.StatusViewerResponse;
-import com.mohan.pulse.exceptions.ApiException;
+import com.mohan.pulse.common.ApiException;
 import com.mohan.pulse.message.ChatService;
 import com.mohan.pulse.user.User;
 import com.mohan.pulse.contact.ContactRepository;

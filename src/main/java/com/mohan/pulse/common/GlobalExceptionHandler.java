@@ -1,6 +1,5 @@
-package com.mohan.pulse.exceptions;
+package com.mohan.pulse.common;
 
-import com.mohan.pulse.dtos.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;

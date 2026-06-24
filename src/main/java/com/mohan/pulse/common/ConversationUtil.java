@@ -1,4 +1,4 @@
-package com.mohan.pulse.utils;
+package com.mohan.pulse.common;
 
 public final class ConversationUtil {
 

@@ -1,6 +1,6 @@
 package com.mohan.pulse.reaction;
 
-import com.mohan.pulse.exceptions.ApiException;
+import com.mohan.pulse.common.ApiException;
 import com.mohan.pulse.group.GroupMember;
 import com.mohan.pulse.message.Message;
 import com.mohan.pulse.user.User;
@@ -9,7 +9,7 @@ import com.mohan.pulse.reaction.dtos.ReactionEntry;
 import com.mohan.pulse.reaction.dtos.ReactionUpdate;
 import com.mohan.pulse.message.MessageRepository;
 import com.mohan.pulse.user.UserRepository;
-import com.mohan.pulse.utils.ConversationUtil;
+import com.mohan.pulse.common.ConversationUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
