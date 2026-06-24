@@ -1,4 +1,4 @@
-package com.mohan.pulse.models;
+package com.mohan.pulse.user;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

@@ -1,8 +1,7 @@
-package com.mohan.pulse.controllers;
+package com.mohan.pulse.user;
 
 import com.mohan.pulse.dtos.ApiResponse;
-import com.mohan.pulse.dtos.PresenceUpdate;
-import com.mohan.pulse.services.PresenceService;
+import com.mohan.pulse.user.dtos.PresenceUpdate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

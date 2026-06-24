@@ -1,8 +1,6 @@
-package com.mohan.pulse.services;
+package com.mohan.pulse.user;
 
-import com.mohan.pulse.dtos.PresenceUpdate;
-import com.mohan.pulse.models.User;
-import com.mohan.pulse.repositories.UserRepository;
+import com.mohan.pulse.user.dtos.PresenceUpdate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;

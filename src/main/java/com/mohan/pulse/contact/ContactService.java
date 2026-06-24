@@ -2,8 +2,8 @@ package com.mohan.pulse.contact;
 
 import com.mohan.pulse.contact.dtos.*;
 import com.mohan.pulse.exceptions.ApiException;
-import com.mohan.pulse.models.User;
-import com.mohan.pulse.repositories.UserRepository;
+import com.mohan.pulse.user.User;
+import com.mohan.pulse.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
