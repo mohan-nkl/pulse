@@ -32,6 +32,8 @@ public class MessageResponse {
 
     private List<ReactionEntry> reactions;
 
-    // Non-null only when this message is a status reply.
     private StatusPreviewDto statusPreview;
+
+    private boolean edited;    // sender edited the text
+    private boolean deleted;   // deleted for everyone -> render "message deleted"
 }

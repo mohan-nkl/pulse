@@ -6,8 +6,16 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 let stompClient = null;
 
-export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onReaction, onNotification) {
+export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onReaction, onNotification, onMessageDeleted, onMessageEdited) {
     const token = getToken();
+
+    // Idempotent: if a client already exists (StrictMode double-mount or a
+    // re-entry into the chat), tear it down first so we never run two live
+    // sockets delivering every message/notification twice.
+    if (stompClient) {
+        stompClient.deactivate();
+        stompClient = null;
+    }
 
     stompClient = new Client({
         webSocketFactory: () => new SockJS(`${BASE_URL}/ws?token=${token}`),
@@ -46,6 +54,18 @@ export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onRe
             stompClient.subscribe("/user/queue/notifications", (frame) => {
                 if (onNotification) {
                     onNotification(JSON.parse(frame.body));
+                }
+            });
+
+            stompClient.subscribe("/user/queue/message-deleted", (frame) => {
+                if (onMessageDeleted) {
+                    onMessageDeleted(JSON.parse(frame.body));
+                }
+            });
+
+            stompClient.subscribe("/user/queue/message-edited", (frame) => {
+                if (onMessageEdited) {
+                    onMessageEdited(JSON.parse(frame.body));
                 }
             });
 
