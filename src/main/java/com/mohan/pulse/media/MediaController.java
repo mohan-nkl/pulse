@@ -1,7 +1,6 @@
-package com.mohan.pulse.controllers;
+package com.mohan.pulse.media;
 
 import com.mohan.pulse.dtos.ApiResponse;
-import com.mohan.pulse.services.MediaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

@@ -1,4 +1,4 @@
-package com.mohan.pulse.services;
+package com.mohan.pulse.media;
 
 import com.mohan.pulse.exceptions.ApiException;
 import org.springframework.beans.factory.annotation.Value;
