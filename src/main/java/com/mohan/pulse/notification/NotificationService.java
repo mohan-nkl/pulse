@@ -1,6 +1,6 @@
-package com.mohan.pulse.services;
+package com.mohan.pulse.notification;
 
-import com.mohan.pulse.dtos.NotificationDto;
+import com.mohan.pulse.notification.dtos.NotificationDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;

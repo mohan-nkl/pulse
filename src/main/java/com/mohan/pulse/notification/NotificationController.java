@@ -1,8 +1,7 @@
-package com.mohan.pulse.controllers;
+package com.mohan.pulse.notification;
 
 import com.mohan.pulse.dtos.ApiResponse;
 import com.mohan.pulse.security.SecurityUtil;
-import com.mohan.pulse.services.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
