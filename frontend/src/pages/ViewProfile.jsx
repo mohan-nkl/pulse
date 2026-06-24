@@ -40,14 +40,15 @@ export default function ViewProfile() {
 
     return (
         <div style={styles.container}>
+            <style>{css}</style>
             <div style={styles.card}>
 
-                <button style={styles.backBtn} onClick={() => navigate(-1)}>← Back</button>
+                <button style={styles.backBtn} className="pulse-back" onClick={() => navigate(-1)}>← Back</button>
 
                 {/* Avatar + Name */}
                 <div style={styles.avatarWrapper}>
                     <img
-                        src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || "U")}&size=96`}
+                        src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || "U")}&size=96&background=00a884&color=fff`}
                         alt="avatar"
                         style={styles.avatar}
                     />
@@ -67,7 +68,7 @@ export default function ViewProfile() {
                             <span style={styles.detailValue}>{profile.about}</span>
                         </div>
                     )}
-                    <div style={styles.detailRow}>
+                    <div style={styles.detailRowLast}>
                         <span style={styles.detailLabel}>Member since</span>
                         <span style={styles.detailValue}>
                             {new Date(profile.createdAt).toLocaleDateString()}
@@ -81,57 +82,84 @@ export default function ViewProfile() {
 }
 
 const styles = {
-    center: { display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" },
+    center: {
+        display: "flex", justifyContent: "center", alignItems: "center",
+        minHeight: "100vh", background: "#0b141a", color: "#e9edef",
+    },
     container: {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
         minHeight: "100vh",
+        padding: "24px",
+        boxSizing: "border-box",
+        background:
+            "radial-gradient(1200px 500px at 50% -10%, rgba(0,168,132,0.10), transparent 60%), #0b141a",
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     },
     card: {
         display: "flex",
         flexDirection: "column",
-        width: "340px",
+        width: "360px",
+        maxWidth: "100%",
         padding: "24px",
-        border: "1px solid #ddd",
-        borderRadius: "8px",
+        background: "#111b21",
+        border: "1px solid #1f2c33",
+        borderRadius: "18px",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+        color: "#e9edef",
     },
     backBtn: {
         background: "none",
         border: "none",
         cursor: "pointer",
         fontSize: "14px",
-        color: "#1a73e8",
+        color: "#38d39f",
         padding: 0,
         marginBottom: "16px",
         textAlign: "left",
+        alignSelf: "flex-start",
+        fontWeight: 500,
     },
     avatarWrapper: {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        marginBottom: "24px",
+        marginBottom: "22px",
         gap: "8px",
     },
     avatar: {
-        width: "90px",
-        height: "90px",
+        width: "96px",
+        height: "96px",
         borderRadius: "50%",
         objectFit: "cover",
-        border: "1px solid #ddd",
+        border: "2px solid #00a884",
     },
-    name: { fontSize: "20px", margin: 0 },
+    name: { fontSize: "21px", fontWeight: 600, margin: "6px 0 0" },
     lastSeen: {
         fontSize: "13px",
-        color: "#888",
+        color: "#8696a0",
     },
     detailsSection: { display: "flex", flexDirection: "column" },
     detailRow: {
         display: "flex",
         justifyContent: "space-between",
-        padding: "12px 0",
-        borderBottom: "1px solid #f0f0f0",
+        alignItems: "center",
+        padding: "13px 0",
+        borderBottom: "1px solid #1f2c33",
+        gap: "12px",
     },
-    detailLabel: { fontSize: "13px", color: "#888" },
-    detailValue: { fontSize: "14px", fontWeight: "500", textAlign: "right", maxWidth: "200px", wordBreak: "break-word" },
+    detailRowLast: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "13px 0",
+        gap: "12px",
+    },
+    detailLabel: { fontSize: "13px", color: "#8696a0" },
+    detailValue: { fontSize: "14px", fontWeight: 500, textAlign: "right", maxWidth: "220px", wordBreak: "break-word" },
 };
+
+const css = `
+.pulse-back:hover { color: #06cf7f !important; }
+`;

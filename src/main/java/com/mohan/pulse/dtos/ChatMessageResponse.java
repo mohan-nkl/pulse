@@ -25,6 +25,9 @@ public class ChatMessageResponse {
     private String replyToType;
     private boolean replyToDeleted;
 
-    // Non-null only when this message is a status reply.
     private StatusPreviewDto statusPreview;
+
+    // ---- Feature 15: delete / edit ----
+    private boolean edited;
+    private boolean deleted;
 }

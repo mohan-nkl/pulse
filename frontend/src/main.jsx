@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import { AuthProvider } from "./context/AuthContext";
+import { NotificationProvider } from "./context/NotificationContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import Signup from "./pages/Signup";
@@ -20,6 +21,7 @@ createRoot(document.getElementById("root")).render(
     <StrictMode>
         <BrowserRouter>
             <AuthProvider>
+                <NotificationProvider>
                 <Routes>
                     <Route path="/signup" element={<Signup />} />
                     <Route path="/login" element={<Login />} />
@@ -31,6 +33,7 @@ createRoot(document.getElementById("root")).render(
                     <Route path="/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
                     <Route path="/status" element={<ProtectedRoute><StatusPage /></ProtectedRoute>} />
                 </Routes>
+                </NotificationProvider>
             </AuthProvider>
         </BrowserRouter>
     </StrictMode>

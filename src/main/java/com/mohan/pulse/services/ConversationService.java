@@ -10,6 +10,7 @@ import com.mohan.pulse.exceptions.ApiException;
 import com.mohan.pulse.models.Message;
 import com.mohan.pulse.models.MessageStatus;
 import com.mohan.pulse.models.Status;
+import com.mohan.pulse.repositories.DeletedMessageRepository;
 import com.mohan.pulse.repositories.GroupMemberRepository;
 import com.mohan.pulse.repositories.MessageRecipientStatusRepository;
 import com.mohan.pulse.repositories.MessageRepository;
@@ -21,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,18 +40,19 @@ public class ConversationService {
     private final StatusRepository statusRepository;
     private final ReactionService reactionService;
     private final MessageRecipientStatusRepository recipientStatusRepository;
+    private final DeletedMessageRepository deletedMessageRepository;
 
-    // ── Direct message conversation ───────────────────────────────────────────
+    // ── Direct message conversation (paginated) ───────────────────────────────
 
     public PagedMessages getDirectConversation(Long currentUserId,
                                                Long otherUserId,
                                                Long beforeId,
                                                int limit) {
         String conversationId = ConversationUtil.dmConversationId(currentUserId, otherUserId);
-        return fetchPage(conversationId, beforeId, limit);
+        return fetchPage(conversationId, beforeId, limit, currentUserId);
     }
 
-    // ── Group conversation ────────────────────────────────────────────────────
+    // ── Group conversation (paginated) ────────────────────────────────────────
 
     public PagedMessages getGroupConversation(Long currentUserId,
                                               Long groupId,
@@ -59,26 +62,25 @@ public class ConversationService {
             throw new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this group.");
         }
         String conversationId = ConversationUtil.groupConversationId(groupId);
-        return fetchPage(conversationId, beforeId, limit);
+        return fetchPage(conversationId, beforeId, limit, currentUserId);
     }
 
     // ── Unread counts across all conversations ────────────────────────────────
-    // Returns a map of conversationId → number of unread messages.
-    // Frontend uses this to show the number badge on each chat row.
+    // Returns conversationId → number of unread messages, for the chat-list badges.
 
     public Map<String, Integer> getUnreadCounts(Long userId) {
         return recipientStatusRepository
                 .countUnreadPerConversation(userId)
                 .stream()
                 .collect(Collectors.toMap(
-                        row -> (String) row[0],         // conversationId
-                        row -> ((Long) row[1]).intValue() // count
+                        row -> (String) row[0],            // conversationId
+                        row -> ((Long) row[1]).intValue()  // count
                 ));
     }
 
     // ── Core paging logic ─────────────────────────────────────────────────────
 
-    private PagedMessages fetchPage(String conversationId, Long beforeId, int limit) {
+    private PagedMessages fetchPage(String conversationId, Long beforeId, int limit, Long currentUserId) {
         var pageable = PageRequest.of(0, limit);
 
         // Fetch DESC (newest first within the batch) so LIMIT grabs the right end.
@@ -90,20 +92,27 @@ public class ConversationService {
 
         // Reverse to chronological (oldest→newest) before mapping to responses.
         List<Message> messages = new ArrayList<>(raw);
-        java.util.Collections.reverse(messages);
+        Collections.reverse(messages);
 
-        // hasMore: if we got a full batch there might be older messages to load.
+        // hasMore: a full batch means there may be older messages to load.
         boolean hasMore = raw.size() == limit;
 
-        return new PagedMessages(toResponses(messages), hasMore);
+        return new PagedMessages(toResponses(messages, currentUserId), hasMore);
     }
 
     // ── Map Message entities → MessageResponse DTOs ───────────────────────────
 
-    private List<MessageResponse> toResponses(List<Message> messages) {
+    private List<MessageResponse> toResponses(List<Message> messages, Long currentUserId) {
         if (messages.isEmpty()) return List.of();
 
         List<Long> messageIds = messages.stream().map(Message::getId).toList();
+
+        // Which of these did the current user delete-for-me? Filter them out.
+        Set<Long> hiddenForMe = deletedMessageRepository
+                .findByUser_IdAndMessage_IdIn(currentUserId, messageIds).stream()
+                .map(dm -> dm.getMessage().getId())
+                .collect(Collectors.toSet());
+
         Map<Long, MessageStatusUpdate> statusById =
                 messageStatusService.statusForMessages(messageIds);
         Map<Long, List<ReactionEntry>> reactionsById =
@@ -120,6 +129,7 @@ public class ConversationService {
                 .collect(Collectors.toMap(Status::getId, s -> s));
 
         return messages.stream()
+                .filter(message -> !hiddenForMe.contains(message.getId())) // drop delete-for-me
                 .map(message -> {
                     MessageStatusUpdate s = statusById.get(message.getId());
                     ReplySummary reply = ReplySummary.from(message.getReplyTo());
@@ -154,7 +164,9 @@ public class ConversationService {
                             reply.replyToType(),
                             reply.replyToDeleted(),
                             reactionsById.getOrDefault(message.getId(), List.of()),
-                            preview);
+                            preview,
+                            message.isEdited(),
+                            message.isDeleted());
                 })
                 .toList();
     }
