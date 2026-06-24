@@ -6,6 +6,7 @@ import HomeButton from "../components/HomeButton";
 import client from "../api/client";
 import { uploadMedia, getMessageType } from "../api/mediaApi";
 import { reactToMessage, unreactToMessage } from "../api/reactionApi";
+import { deleteForMe, deleteForEveryone, editMessage } from "../api/messageActionApi";
 import {
     connectWebSocket,
     sendMessage,
@@ -280,6 +281,9 @@ export default function ChatPage() {
     const [messages, setMessages] = useState([]);
     const [draft, setDraft] = useState("");
 
+    // When set, the composer is in EDIT mode for this message { id }.
+    const [editingMessage, setEditingMessage] = useState(null);
+
     // userId -> name for the open group, so we can label who sent each message.
     const [memberNames, setMemberNames] = useState({});
 
@@ -319,6 +323,10 @@ export default function ChatPage() {
     // mount) never reads a stale/undefined value.
     const currentUserIdRef = useRef(null);
 
+    // Connect exactly once, even under StrictMode's double-mount (which would
+    // otherwise open two sockets and double every notification).
+    const hasConnectedRef = useRef(false);
+
     // Whether THIS browser window is focused right now. We only send read
     // receipts when focused — having the chat open in a background window
     // (e.g. two windows side by side while testing) must NOT mark messages read.
@@ -330,7 +338,7 @@ export default function ChatPage() {
     // moment the window regains focus — never before.
     const pendingReadRef = useRef(null);
 
-    // Hidden file input for the attach (paperclip) button.
+    // Hidden file input for the attachment (paperclip) button.
     const fileInputRef = useRef(null);
 
     // id -> bubble DOM node, so tapping a reply quote can scroll to the original.
@@ -382,10 +390,10 @@ export default function ChatPage() {
                 try {
                     const { type, userId, id } = JSON.parse(saved);
                     if (type === "dm") {
-                        const contact = loadedContacts.find((c) => c.userId === userId);
+                        const contact = loadedContacts.find((c) => Number(c.userId) === Number(userId));
                         if (contact) openDirect(contact);
                     } else if (type === "group") {
-                        const group = loadedGroups.find((g) => g.id === id);
+                        const group = loadedGroups.find((g) => Number(g.id) === Number(id));
                         if (group) openGroup(group);
                     }
                 } catch {
@@ -394,6 +402,9 @@ export default function ChatPage() {
             }
         };
         init();
+
+        if (hasConnectedRef.current) return;
+        hasConnectedRef.current = true;
 
         connectWebSocket(
             (message) => {
@@ -477,11 +488,30 @@ export default function ChatPage() {
                         icon: "/favicon.svg",
                     });
                 }
+            },
+            (event) => {
+                // A message was deleted for everyone — flip that bubble to "deleted".
+                setMessages((previous) =>
+                    previous.map((m) =>
+                        m.id === event.messageId
+                            ? { ...m, deleted: true, content: null, mediaUrl: null, reactions: [] }
+                            : m
+                    )
+                );
+            },
+            (event) => {
+                // A message was edited — update its text in place and mark edited.
+                setMessages((previous) =>
+                    previous.map((m) =>
+                        m.id === event.messageId
+                            ? { ...m, content: event.content, edited: true }
+                            : m
+                    )
+                );
             }
         );
 
         return () => {
-            disconnectWebSocket();
             // Clear any pending typing timers so they don't fire after unmount.
             if (typingIdleTimerRef.current) clearTimeout(typingIdleTimerRef.current);
             Object.values(typingExpiryTimersRef.current).forEach(clearTimeout);
@@ -490,7 +520,7 @@ export default function ChatPage() {
     }, []);
 
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+        bottomRef.current?.scrollIntoView({ behavior: "auto" });
     }, [messages]);
 
     // Track whether this window is focused. On regaining focus, if the open
@@ -663,6 +693,7 @@ export default function ChatPage() {
         // Leaving the previous chat: stop any typing signal there.
         stopTypingNow(openConversationIdRef.current);
         setReplyingTo(null); // don't carry a reply draft into another chat
+        setEditingMessage(null);
         setSelected({ type: "dm", userId: contact.userId, name: contact.name });
         openConversationIdRef.current = convId;
         setShowMembers(false);
@@ -693,6 +724,7 @@ export default function ChatPage() {
         // Leaving the previous chat: stop any typing signal there.
         stopTypingNow(openConversationIdRef.current);
         setReplyingTo(null); // don't carry a reply draft into another chat
+        setEditingMessage(null);
         setSelected({ type: "group", ...group });
         openConversationIdRef.current = convId;
         setShowMembers(false);
@@ -779,9 +811,82 @@ export default function ChatPage() {
         }
     };
 
+    // ---- delete ----
+
+    // Delete for me: hide locally right away, then tell the server.
+    const handleDeleteForMe = async (messageId) => {
+        setMenuFor(null);
+        setMessages((prev) => prev.filter((m) => m.id !== messageId));
+        try {
+            await deleteForMe(messageId);
+        } catch (error) {
+            console.error("Delete for me failed:", error);
+        }
+    };
+
+    // Delete for everyone: the server broadcasts back, which flips the bubble to
+    // "deleted" for all (including me) via the onMessageDeleted handler.
+    const handleDeleteForEveryone = async (messageId) => {
+        setMenuFor(null);
+        try {
+            await deleteForEveryone(messageId);
+        } catch (error) {
+            console.error("Delete for everyone failed:", error);
+            alert("Could not delete for everyone (too old, or not your message).");
+        }
+    };
+
+    // Can the current user still delete THIS message for everyone?
+    // Sender only, within 1 hour, and not already deleted.
+    const canDeleteForEveryone = (message) => {
+        if (message.senderId !== currentUserId) return false;
+        if (message.deleted) return false;
+        const ageMs = Date.now() - new Date(message.createdAt).getTime();
+        return ageMs <= 60 * 60 * 1000; // 1 hour
+    };
+
+    // Can the current user edit THIS message? Sender, own TEXT message, within
+    // 30 minutes. Read status does not matter (WhatsApp-style).
+    const canEdit = (message) => {
+        if (message.senderId !== currentUserId) return false;
+        if (message.deleted) return false;
+        if (message.type && message.type !== "TEXT") return false;
+        const ageMs = Date.now() - new Date(message.createdAt).getTime();
+        return ageMs <= 30 * 60 * 1000; // 30 minutes
+    };
+
+    // Start editing: put the composer into edit mode, pre-filled with the text.
+    const startEdit = (message) => {
+        setMenuFor(null);
+        setReplyingTo(null);
+        setEditingMessage({ id: message.id });
+        setDraft(message.content || "");
+    };
+
+    const cancelEdit = () => {
+        setEditingMessage(null);
+        setDraft("");
+    };
+
     const handleSend = () => {
         const text = draft.trim();
         if (!text || !selected) {
+            return;
+        }
+
+        // Edit mode: save the edit instead of sending a new message.
+        if (editingMessage) {
+            const id = editingMessage.id;
+            // optimistic update; the broadcast will confirm
+            setMessages((prev) =>
+                prev.map((m) => (m.id === id ? { ...m, content: text, edited: true } : m))
+            );
+            setEditingMessage(null);
+            setDraft("");
+            editMessage(id, text).catch((error) => {
+                console.error("Edit failed:", error);
+                alert("Could not edit (too old, or not your message).");
+            });
             return;
         }
 
@@ -928,17 +1033,33 @@ export default function ChatPage() {
                 ) : (
                     <>
                         <header style={styles.chatHeader}>
-                            <div style={styles.headerInfo}>
-                                <span style={styles.headerName}>{selected.name}</span>
-                                <span style={styles.presenceLine}>
-                                    {headerStatusLine(
-                                        selected,
-                                        typingHere,
-                                        memberNames,
-                                        presence,
-                                        currentUserId
-                                    )}
-                                </span>
+                            <div style={styles.headerLeft}>
+                                {selected.type === "dm" ? (
+                                    (() => {
+                                        const c = contacts.find((x) => x.userId === selected.userId);
+                                        return c?.avatarUrl ? (
+                                            <img src={c.avatarUrl} alt="" style={styles.headerAvatar} />
+                                        ) : (
+                                            <div style={styles.headerAvatarFallback}>
+                                                {(selected.name || "?").charAt(0).toUpperCase()}
+                                            </div>
+                                        );
+                                    })()
+                                ) : (
+                                    <div style={styles.headerAvatarFallback}>#</div>
+                                )}
+                                <div style={styles.headerInfo}>
+                                    <span style={styles.headerName}>{selected.name}</span>
+                                    <span style={styles.presenceLine}>
+                                        {headerStatusLine(
+                                            selected,
+                                            typingHere,
+                                            memberNames,
+                                            presence,
+                                            currentUserId
+                                        )}
+                                    </span>
+                                </div>
                             </div>
                             {selected.type === "group" && (
                                 <button style={styles.infoBtn} onClick={() => setShowMembers((v) => !v)}>
@@ -1006,21 +1127,30 @@ export default function ChatPage() {
                                                 </div>
                                             )}
 
-                                            {/* reply quote, only on reply messages */}
-                                            <QuotedMessage
-                                                message={message}
-                                                currentUserId={currentUserId}
-                                                onJump={jumpToMessage}
-                                            />
+                                            {message.deleted ? (
+                                                <span style={styles.deletedText}>🚫 This message was deleted</span>
+                                            ) : (
+                                                <>
+                                                    {/* reply quote, only on reply messages */}
+                                                    <QuotedMessage
+                                                        message={message}
+                                                        currentUserId={currentUserId}
+                                                        onJump={jumpToMessage}
+                                                    />
 
-                                            {/* renders text, image, video, audio, or file */}
-                                            <MessageContent message={message} onImageClick={setLightboxUrl} />
+                                                    {/* renders text, image, video, audio, or file */}
+                                                    <MessageContent message={message} onImageClick={setLightboxUrl} />
+                                                </>
+                                            )}
 
                                             <span style={styles.meta}>
+                                                {message.edited && !message.deleted && (
+                                                    <span style={styles.editedLabel}>edited</span>
+                                                )}
                                                 <span style={styles.time}>
                                                     {formatTime(message.createdAt)}
                                                 </span>
-                                                {mine && <Ticks message={message} />}
+                                                {mine && !message.deleted && <Ticks message={message} />}
                                             </span>
 
                                             {/* hover chevron: opens the React / Reply menu */}
@@ -1047,24 +1177,50 @@ export default function ChatPage() {
                                                     style={styles.actionMenu}
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
+                                                    {!message.deleted && (
+                                                        <>
+                                                            <button
+                                                                style={styles.actionMenuItem}
+                                                                onClick={() => {
+                                                                    setMenuFor(null);
+                                                                    setEmojiPickerFor(message.id);
+                                                                }}
+                                                            >
+                                                                React
+                                                            </button>
+                                                            <button
+                                                                style={styles.actionMenuItem}
+                                                                onClick={() => {
+                                                                    setMenuFor(null);
+                                                                    startReply(message);
+                                                                }}
+                                                            >
+                                                                Reply
+                                                            </button>
+                                                            {canEdit(message) && (
+                                                                <button
+                                                                    style={styles.actionMenuItem}
+                                                                    onClick={() => startEdit(message)}
+                                                                >
+                                                                    Edit
+                                                                </button>
+                                                            )}
+                                                        </>
+                                                    )}
                                                     <button
                                                         style={styles.actionMenuItem}
-                                                        onClick={() => {
-                                                            setMenuFor(null);
-                                                            setEmojiPickerFor(message.id);
-                                                        }}
+                                                        onClick={() => handleDeleteForMe(message.id)}
                                                     >
-                                                        React
+                                                        Delete for me
                                                     </button>
-                                                    <button
-                                                        style={styles.actionMenuItem}
-                                                        onClick={() => {
-                                                            setMenuFor(null);
-                                                            startReply(message);
-                                                        }}
-                                                    >
-                                                        Reply
-                                                    </button>
+                                                    {canDeleteForEveryone(message) && (
+                                                        <button
+                                                            style={styles.actionMenuItemDanger}
+                                                            onClick={() => handleDeleteForEveryone(message.id)}
+                                                        >
+                                                            Delete for everyone
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
 
@@ -1124,6 +1280,22 @@ export default function ChatPage() {
                                 </div>
                             )}
 
+                            {editingMessage && (
+                                <div style={styles.replyBar}>
+                                    <div style={styles.replyBarBody}>
+                                        <div style={styles.replyBarAuthor}>Editing message</div>
+                                        <div style={styles.replyBarText}>Make your changes and press Save</div>
+                                    </div>
+                                    <button
+                                        style={styles.replyBarClose}
+                                        onClick={cancelEdit}
+                                        title="Cancel edit"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            )}
+
                             <div style={styles.composer}>
                                 {/* hidden file input */}
                                 <input
@@ -1134,25 +1306,30 @@ export default function ChatPage() {
                                     onChange={handleFileSelected}
                                 />
 
-                                {/* paperclip / attach button */}
-                                <button
-                                    style={styles.attachButton}
-                                    onClick={() => fileInputRef.current.click()}
-                                    disabled={isUploading}
-                                    title="Attach a file"
-                                >
-                                    📎
-                                </button>
+                                {/* paperclip / attach button — hidden while editing */}
+                                {!editingMessage && (
+                                    <button
+                                        style={styles.attachButton}
+                                        onClick={() => fileInputRef.current.click()}
+                                        disabled={isUploading}
+                                        title="Attach a file"
+                                    >
+                                        📎
+                                    </button>
+                                )}
 
                                 <input
                                     style={styles.input}
                                     value={isUploading ? "Uploading..." : draft}
                                     onChange={(e) => {
                                         setDraft(e.target.value);
-                                        handleTypingActivity();
+                                        if (!editingMessage) handleTypingActivity();
                                     }}
-                                    onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                                    placeholder="Type a message"
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") handleSend();
+                                        if (e.key === "Escape" && editingMessage) cancelEdit();
+                                    }}
+                                    placeholder={editingMessage ? "Edit your message" : "Type a message"}
                                     disabled={isUploading}
                                 />
 
@@ -1161,7 +1338,7 @@ export default function ChatPage() {
                                     onClick={handleSend}
                                     disabled={isUploading}
                                 >
-                                    Send
+                                    {editingMessage ? "Save" : "Send"}
                                 </button>
                             </div>
                         </div>
@@ -1293,6 +1470,9 @@ const styles = {
         justifyContent: "space-between",
     },
     headerInfo: { display: "flex", flexDirection: "column" },
+    headerLeft: { display: "flex", alignItems: "center", gap: "10px" },
+    headerAvatar: { width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover", flex: "0 0 auto" },
+    headerAvatarFallback: { width: "38px", height: "38px", borderRadius: "50%", background: "#2a3942", color: "#e9edef", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: 600, flex: "0 0 auto" },
     headerName: { fontWeight: 600, fontSize: "15px" },
     presenceLine: { fontSize: "12px", color: "#8696a0", marginTop: "1px", minHeight: "14px" },
     infoBtn: {
@@ -1369,6 +1549,7 @@ const styles = {
         whiteSpace: "nowrap",
     },
     time: { fontSize: "11px", color: "#9fc1b8" },
+    editedLabel: { fontSize: "10.5px", color: "#9fc1b8", fontStyle: "italic", marginRight: "2px" },
 
     // hover chevron at the bubble's top corner
     // hover chevron in the bubble's top-right gutter (never over text)
@@ -1395,7 +1576,7 @@ const styles = {
     actionMenu: {
         position: "absolute",
         top: "24px",
-        right: "2px",
+        left: "0",
         zIndex: 20,
         display: "flex",
         flexDirection: "column",
@@ -1415,6 +1596,16 @@ const styles = {
         fontSize: "14px",
         cursor: "pointer",
     },
+    actionMenuItemDanger: {
+        border: "none",
+        background: "transparent",
+        color: "#f15c6d",
+        textAlign: "left",
+        padding: "8px 14px",
+        fontSize: "14px",
+        cursor: "pointer",
+    },
+    deletedText: { fontStyle: "italic", color: "#8696a0", fontSize: "13.5px" },
 
     // reactions: pill row UNDER the bubble
     pillRow: { display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "3px" },
