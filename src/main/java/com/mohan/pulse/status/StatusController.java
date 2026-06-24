@@ -1,13 +1,12 @@
-package com.mohan.pulse.controllers;
+package com.mohan.pulse.status;
 
 import com.mohan.pulse.dtos.ApiResponse;
 import com.mohan.pulse.dtos.ChatMessageResponse;
-import com.mohan.pulse.dtos.CreateStatusRequest;
-import com.mohan.pulse.dtos.StatusReplyRequest;
-import com.mohan.pulse.dtos.StatusResponse;
-import com.mohan.pulse.dtos.StatusViewerResponse;
+import com.mohan.pulse.status.dtos.CreateStatusRequest;
+import com.mohan.pulse.status.dtos.StatusReplyRequest;
+import com.mohan.pulse.status.dtos.StatusResponse;
+import com.mohan.pulse.status.dtos.StatusViewerResponse;
 import com.mohan.pulse.security.SecurityUtil;
-import com.mohan.pulse.services.StatusService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

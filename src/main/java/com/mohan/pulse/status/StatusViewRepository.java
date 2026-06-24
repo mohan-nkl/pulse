@@ -1,6 +1,5 @@
-package com.mohan.pulse.repositories;
+package com.mohan.pulse.status;
 
-import com.mohan.pulse.models.StatusView;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
