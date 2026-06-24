@@ -1,10 +1,8 @@
-package com.mohan.pulse.services;
+package com.mohan.pulse.user;
 
-import com.mohan.pulse.dtos.UpdateProfileRequest;
-import com.mohan.pulse.dtos.UserProfileResponse;
+import com.mohan.pulse.user.dtos.UpdateProfileRequest;
+import com.mohan.pulse.user.dtos.UserProfileResponse;
 import com.mohan.pulse.exceptions.ApiException;
-import com.mohan.pulse.models.User;
-import com.mohan.pulse.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;

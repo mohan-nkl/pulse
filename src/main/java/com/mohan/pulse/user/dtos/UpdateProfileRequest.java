@@ -1,4 +1,4 @@
-package com.mohan.pulse.dtos;
+package com.mohan.pulse.user.dtos;
 
 import jakarta.validation.constraints.Size;
 import lombok.Getter;

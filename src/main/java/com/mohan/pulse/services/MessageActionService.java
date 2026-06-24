@@ -10,7 +10,7 @@ import com.mohan.pulse.models.Message;
 import com.mohan.pulse.repositories.DeletedMessageRepository;
 import com.mohan.pulse.group.GroupMemberRepository;
 import com.mohan.pulse.repositories.MessageRepository;
-import com.mohan.pulse.repositories.UserRepository;
+import com.mohan.pulse.user.UserRepository;
 import com.mohan.pulse.utils.ConversationUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
