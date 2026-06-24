@@ -279,6 +279,8 @@ export default function ChatPage() {
     const [selected, setSelected] = useState(null);
 
     const [messages, setMessages] = useState([]);
+    const [hasMore, setHasMore] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [draft, setDraft] = useState("");
 
     // When set, the composer is in EDIT mode for this message { id }.
@@ -319,6 +321,9 @@ export default function ChatPage() {
 
     const openConversationIdRef = useRef(null);
     const bottomRef = useRef(null);
+    const scrollRef = useRef(null);
+    // Gate auto-scroll: true on open/new message, false when prepending older.
+    const shouldScrollToBottom = useRef(true);
     // Always-fresh copy of my id, so the WebSocket callback (created once at
     // mount) never reads a stale/undefined value.
     const currentUserIdRef = useRef(null);
@@ -413,6 +418,7 @@ export default function ChatPage() {
                 // My OWN echoed message: just show it, never acknowledge it.
                 if (mine) {
                     if (message.conversationId === openConversationIdRef.current) {
+                        shouldScrollToBottom.current = true;
                         setMessages((previous) => [...previous, message]);
                     }
                     return;
@@ -423,6 +429,7 @@ export default function ChatPage() {
                 clearTyping(message.conversationId, message.senderId);
 
                 if (message.conversationId === openConversationIdRef.current) {
+                    shouldScrollToBottom.current = true;
                     setMessages((previous) => [...previous, message]);
                     if (windowFocusedRef.current) {
                         // Focused: read covers delivered in one step (backend
@@ -520,7 +527,9 @@ export default function ChatPage() {
     }, []);
 
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "auto" });
+        if (shouldScrollToBottom.current) {
+            bottomRef.current?.scrollIntoView({ behavior: "auto" });
+        }
     }, [messages]);
 
     // Track whether this window is focused. On regaining focus, if the open
@@ -701,9 +710,13 @@ export default function ChatPage() {
 
         try {
             const response = await client.get(`/api/conversations/${contact.userId}`);
-            setMessages(response.data.data);
+            const { messages: batch, hasMore: more } = response.data.data;
+            shouldScrollToBottom.current = true;
+            setMessages(batch);
+            setHasMore(more);
         } catch {
             setMessages([]);
+            setHasMore(false);
         }
 
         // Opening a chat means I've read everything in it.
@@ -734,7 +747,9 @@ export default function ChatPage() {
                 getGroupHistory(group.id),
                 getGroupMembers(group.id),
             ]);
-            setMessages(history);
+            shouldScrollToBottom.current = true;
+            setMessages(history.messages);
+            setHasMore(history.hasMore);
 
             const names = {};
             members.forEach((member) => {
@@ -746,6 +761,7 @@ export default function ChatPage() {
             loadPresence(members.map((member) => member.userId));
         } catch {
             setMessages([]);
+            setHasMore(false);
             setMemberNames({});
         }
 
@@ -802,6 +818,40 @@ export default function ChatPage() {
     };
 
     // Picking from the quick-picker popover.
+    // Load older messages on scroll-up. Saves scrollHeight before prepending,
+    // then restores the offset after the DOM updates so the view doesn't jump.
+    const loadOlderMessages = async () => {
+        if (!hasMore || loadingMore || messages.length === 0) return;
+        const container = scrollRef.current;
+        const oldScrollHeight = container ? container.scrollHeight : 0;
+        const oldScrollTop = container ? container.scrollTop : 0;
+        const oldestId = messages[0].id;
+        setLoadingMore(true);
+        shouldScrollToBottom.current = false;
+        try {
+            let response;
+            if (selected.type === "dm") {
+                response = await client.get(`/api/conversations/${selected.userId}?before=${oldestId}`);
+            } else {
+                response = await client.get(`/api/conversations/group/${selected.id}?before=${oldestId}`);
+            }
+            const { messages: older, hasMore: more } = response.data.data;
+            setHasMore(more);
+            if (older.length > 0) {
+                setMessages((prev) => [...older, ...prev]);
+                requestAnimationFrame(() => {
+                    if (container) {
+                        container.scrollTop = container.scrollHeight - oldScrollHeight + oldScrollTop;
+                    }
+                });
+            }
+        } catch {
+            /* silent */
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
     const pickReaction = async (messageId, emoji) => {
         setEmojiPickerFor(null);
         try {
@@ -1068,7 +1118,19 @@ export default function ChatPage() {
                             )}
                         </header>
 
-                        <div style={styles.messages}>
+                        <div
+                            ref={scrollRef}
+                            style={styles.messages}
+                            onScroll={(e) => {
+                                if (e.target.scrollTop < 80) loadOlderMessages();
+                            }}
+                        >
+                            {loadingMore && (
+                                <div style={styles.loadingMore}>Loading older messages…</div>
+                            )}
+                            {!loadingMore && hasMore && messages.length > 0 && (
+                                <div style={styles.loadingMore}>↑ Scroll up for older messages</div>
+                            )}
                             {messages.map((message) => {
                                 const mine = message.senderId === currentUserId;
                                 const showSender = selected.type === "group" && !mine;
@@ -1492,6 +1554,7 @@ const styles = {
         flexDirection: "column",
         gap: "10px",
     },
+    loadingMore: { textAlign: "center", fontSize: "12px", color: "#8696a0", padding: "8px 0", flexShrink: 0 },
     // one message = a column: [bubble] then [pills]. The row hugs its content
     // and the JSX sets alignItems (flex-end for mine, flex-start for theirs).
     row: {
