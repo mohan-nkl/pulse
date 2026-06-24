@@ -1,6 +1,5 @@
-package com.mohan.pulse.repositories;
+package com.mohan.pulse.reaction;
 
-import com.mohan.pulse.models.Reaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

@@ -1,4 +1,4 @@
-package com.mohan.pulse.dtos;
+package com.mohan.pulse.reaction.dtos;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;

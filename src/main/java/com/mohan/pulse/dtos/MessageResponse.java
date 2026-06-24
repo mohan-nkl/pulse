@@ -1,6 +1,7 @@
 package com.mohan.pulse.dtos;
 
 import com.mohan.pulse.models.MessageStatus;
+import com.mohan.pulse.reaction.dtos.ReactionEntry;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
