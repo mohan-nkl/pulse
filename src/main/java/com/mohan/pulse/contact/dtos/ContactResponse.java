@@ -1,4 +1,4 @@
-package com.mohan.pulse.dtos;
+package com.mohan.pulse.contact.dtos;
 
 import lombok.Builder;
 import lombok.Getter;

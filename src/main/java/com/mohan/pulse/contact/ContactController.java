@@ -1,8 +1,8 @@
-package com.mohan.pulse.controllers;
+package com.mohan.pulse.contact;
 
+import com.mohan.pulse.contact.dtos.*;
 import com.mohan.pulse.dtos.*;
 import com.mohan.pulse.security.SecurityUtil;
-import com.mohan.pulse.services.ContactService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
