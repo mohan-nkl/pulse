@@ -6,7 +6,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 let stompClient = null;
 
-export function connectWebSocket(onMessage, onStatus) {
+export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onReaction) {
     const token = getToken();
 
     stompClient = new Client({
@@ -25,6 +25,24 @@ export function connectWebSocket(onMessage, onStatus) {
                 }
             });
 
+            stompClient.subscribe("/topic/presence", (frame) => {
+                if (onPresence) {
+                    onPresence(JSON.parse(frame.body));
+                }
+            });
+
+            stompClient.subscribe("/user/queue/typing", (frame) => {
+                if (onTyping) {
+                    onTyping(JSON.parse(frame.body));
+                }
+            });
+
+            stompClient.subscribe("/user/queue/reactions", (frame) => {
+                if (onReaction) {
+                    onReaction(JSON.parse(frame.body));
+                }
+            });
+
             sendDelivered(null);
         },
     });
@@ -32,32 +50,26 @@ export function connectWebSocket(onMessage, onStatus) {
     stompClient.activate();
 }
 
-export function sendMessage(receiverId, content) {
-    if (!stompClient || !stompClient.connected) {
-        return;
-    }
+export function sendMessage(receiverId, content, messageType = "TEXT", mediaUrl = null, replyToId = null) {
+    if (!stompClient || !stompClient.connected) return;
 
     stompClient.publish({
         destination: "/app/chat.send",
-        body: JSON.stringify({ receiverId, content }),
+        body: JSON.stringify({ receiverId, content, messageType, mediaUrl, replyToId }),
     });
 }
 
-export function sendGroupMessage(groupId, content) {
-    if (!stompClient || !stompClient.connected) {
-        return;
-    }
+export function sendGroupMessage(groupId, content, messageType = "TEXT", mediaUrl = null, replyToId = null) {
+    if (!stompClient || !stompClient.connected) return;
 
     stompClient.publish({
         destination: "/app/group.send",
-        body: JSON.stringify({ groupId, content }),
+        body: JSON.stringify({ groupId, content, messageType, mediaUrl, replyToId }),
     });
 }
 
 export function sendDelivered(conversationId) {
-    if (!stompClient || !stompClient.connected) {
-        return;
-    }
+    if (!stompClient || !stompClient.connected) return;
 
     stompClient.publish({
         destination: "/app/chat.delivered",
@@ -66,13 +78,22 @@ export function sendDelivered(conversationId) {
 }
 
 export function sendRead(conversationId) {
+    if (!stompClient || !stompClient.connected) return;
+
+    stompClient.publish({
+        destination: "/app/chat.read",
+        body: JSON.stringify({ conversationId }),
+    });
+}
+
+export function sendTyping(conversationId, typing) {
     if (!stompClient || !stompClient.connected) {
         return;
     }
 
     stompClient.publish({
-        destination: "/app/chat.read",
-        body: JSON.stringify({ conversationId }),
+        destination: "/app/chat.typing",
+        body: JSON.stringify({ conversationId, typing }),
     });
 }
 

@@ -3,6 +3,8 @@ package com.mohan.pulse.services;
 import com.mohan.pulse.dtos.MessageResponse;
 import com.mohan.pulse.dtos.MessageStatusUpdate;
 import com.mohan.pulse.dtos.StatusPreviewDto;
+import com.mohan.pulse.dtos.ReactionEntry;
+import com.mohan.pulse.dtos.ReplySummary;
 import com.mohan.pulse.exceptions.ApiException;
 import com.mohan.pulse.models.Message;
 import com.mohan.pulse.models.MessageStatus;
@@ -28,6 +30,7 @@ public class ConversationService {
     private final GroupMemberRepository groupMemberRepository;
     private final MessageStatusService messageStatusService;
     private final StatusRepository statusRepository;
+    private final ReactionService reactionService;
 
     public List<MessageResponse> getDirectConversation(Long currentUserId, Long otherUserId) {
 
@@ -59,6 +62,8 @@ public class ConversationService {
         List<Long> messageIds = messages.stream().map(Message::getId).toList();
         Map<Long, MessageStatusUpdate> statusById =
                 messageStatusService.statusForMessages(messageIds);
+        Map<Long, List<ReactionEntry>> reactionsById =
+                reactionService.reactionsForMessages(messageIds);
 
         // Batch-fetch all statuses referenced by these messages in one query
         Set<Long> statusIds = messages.stream()
@@ -73,6 +78,7 @@ public class ConversationService {
         return messages.stream()
                 .map(message -> {
                     MessageStatusUpdate s = statusById.get(message.getId());
+                    ReplySummary reply = ReplySummary.from(message.getReplyTo());
 
                     // Build preview if this message is a status reply
                     StatusPreviewDto preview = null;
@@ -96,6 +102,15 @@ public class ConversationService {
                             s != null ? s.getDeliveredCount() : 0,
                             s != null ? s.getReadCount() : 0,
                             s != null ? s.getTotalRecipients() : 0,
+                            message.getType().name(),
+                            message.getMediaUrl(),
+                            reply.replyToId(),
+                            reply.replyToSenderId(),
+                            reply.replyToSenderName(),
+                            reply.replyToContent(),
+                            reply.replyToType(),
+                            reply.replyToDeleted(),
+                            reactionsById.getOrDefault(message.getId(), List.of()),
                             preview);
                 })
                 .toList();

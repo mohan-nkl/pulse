@@ -14,13 +14,21 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Value("${app.upload.status-dir}")
     private String statusDir;
 
+    @Value("${app.upload.media-dir:uploads/media}")
+    private String mediaDir;
+
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Serve avatar images at /avatars/**
+
+        // avatars
         registry.addResourceHandler("/avatars/**")
                 .addResourceLocations("file:" + avatarDir + "/");
 
-        // Serve status media images at /status-media/**
+        // chat media
+        registry.addResourceHandler("/media/**")
+                .addResourceLocations("file:" + mediaDir + "/");
+
+        // status media
         registry.addResourceHandler("/status-media/**")
                 .addResourceLocations("file:" + statusDir + "/");
     }

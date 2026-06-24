@@ -15,10 +15,16 @@ public class ChatMessageResponse {
     private String content;
     private Instant createdAt;
 
-    // Non-null only when this message is a status reply.
-    // Null means it's a regular message — frontend renders it normally.
-    private StatusPreviewDto statusPreview;
+    private String type;
+    private String mediaUrl;
 
-    public ChatMessageResponse(Long id, String conversationId, Long id1, String content, Instant createdAt) {
-    }
+    private Long replyToId;
+    private Long replyToSenderId;
+    private String replyToSenderName;
+    private String replyToContent;
+    private String replyToType;
+    private boolean replyToDeleted;
+
+    // Non-null only when this message is a status reply.
+    private StatusPreviewDto statusPreview;
 }
