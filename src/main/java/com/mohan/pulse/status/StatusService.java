@@ -1,13 +1,13 @@
 package com.mohan.pulse.status;
 
-import com.mohan.pulse.dtos.ChatMessageResponse;
+import com.mohan.pulse.message.dtos.ChatMessageResponse;
 import com.mohan.pulse.status.dtos.CreateStatusRequest;
-import com.mohan.pulse.dtos.SendMessageRequest;
+import com.mohan.pulse.message.dtos.SendMessageRequest;
 import com.mohan.pulse.status.dtos.StatusReplyRequest;
 import com.mohan.pulse.status.dtos.StatusResponse;
 import com.mohan.pulse.status.dtos.StatusViewerResponse;
 import com.mohan.pulse.exceptions.ApiException;
-import com.mohan.pulse.services.ChatService;
+import com.mohan.pulse.message.ChatService;
 import com.mohan.pulse.user.User;
 import com.mohan.pulse.contact.ContactRepository;
 import com.mohan.pulse.user.UserRepository;

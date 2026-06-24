@@ -1,13 +1,12 @@
-package com.mohan.pulse.reaction;
+package com.mohan.pulse.message;
 
-import com.mohan.pulse.message.Message;
 import com.mohan.pulse.user.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 
@@ -16,11 +15,15 @@ import java.time.Instant;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "reactions",
+@Table(name = "message_recipient_status",
         uniqueConstraints = @UniqueConstraint(
                 columnNames = {"message_id", "user_id"}
-        ))
-public class Reaction {
+        ),
+        indexes = {
+                @Index(name = "idx_mrs_message", columnList = "message_id"),
+                @Index(name = "idx_mrs_recipient_status", columnList = "user_id, status")
+        })
+public class MessageRecipientStatus {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,12 +35,16 @@ public class Reaction {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private User recipient;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String emoji;
+    private MessageStatus status;
 
-    @CreationTimestamp
-    @Column(updatable = false)
-    private Instant createdAt;
+    private Instant deliveredAt;
+
+    private Instant readAt;
+
+    @UpdateTimestamp
+    private Instant updatedAt;
 }
