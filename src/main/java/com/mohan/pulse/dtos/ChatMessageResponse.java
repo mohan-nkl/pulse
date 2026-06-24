@@ -5,11 +5,6 @@ import lombok.Getter;
 
 import java.time.Instant;
 
-/**
- * Sent to both the sender and recipient via WebSocket after a message is saved.
- * The frontend uses 'type' to decide how to render the bubble
- * (plain text, image, video, audio, or file download link).
- */
 @Getter
 @AllArgsConstructor
 public class ChatMessageResponse {
@@ -20,9 +15,16 @@ public class ChatMessageResponse {
     private String content;
     private Instant createdAt;
 
-    // "TEXT", "IMAGE", "AUDIO", "VIDEO", or "FILE"
     private String type;
-
-    // null for text messages, has the file URL for media messages
     private String mediaUrl;
+
+    private Long replyToId;
+    private Long replyToSenderId;
+    private String replyToSenderName;
+    private String replyToContent;
+    private String replyToType;
+    private boolean replyToDeleted;
+
+    // Non-null only when this message is a status reply.
+    private StatusPreviewDto statusPreview;
 }

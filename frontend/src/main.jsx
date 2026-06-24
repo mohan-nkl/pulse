@@ -13,6 +13,7 @@ import Profile from "./pages/Profile";
 import ViewProfile from "./pages/ViewProfile";
 import Contacts from "./pages/Contacts";
 import ChatPage from "./pages/ChatPage";
+import StatusPage from "./pages/StatusPage";
 
 import "./index.css";
 
@@ -30,6 +31,7 @@ createRoot(document.getElementById("root")).render(
                     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                     <Route path="/users/:userId/profile" element={<ProtectedRoute><ViewProfile /></ProtectedRoute>} />
                     <Route path="/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
+                    <Route path="/status" element={<ProtectedRoute><StatusPage /></ProtectedRoute>} />
                 </Routes>
                 </NotificationProvider>
             </AuthProvider>
