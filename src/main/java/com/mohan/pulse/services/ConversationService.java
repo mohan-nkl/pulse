@@ -11,7 +11,7 @@ import com.mohan.pulse.models.Message;
 import com.mohan.pulse.models.MessageStatus;
 import com.mohan.pulse.models.Status;
 import com.mohan.pulse.repositories.DeletedMessageRepository;
-import com.mohan.pulse.repositories.GroupMemberRepository;
+import com.mohan.pulse.group.GroupMemberRepository;
 import com.mohan.pulse.repositories.MessageRecipientStatusRepository;
 import com.mohan.pulse.repositories.MessageRepository;
 import com.mohan.pulse.repositories.StatusRepository;

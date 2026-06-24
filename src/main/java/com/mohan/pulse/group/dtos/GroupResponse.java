@@ -1,6 +1,6 @@
-package com.mohan.pulse.dtos;
+package com.mohan.pulse.group.dtos;
 
-import com.mohan.pulse.models.GroupRole;
+import com.mohan.pulse.group.GroupRole;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 

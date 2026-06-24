@@ -1,6 +1,5 @@
-package com.mohan.pulse.repositories;
+package com.mohan.pulse.group;
 
-import com.mohan.pulse.models.GroupMember;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

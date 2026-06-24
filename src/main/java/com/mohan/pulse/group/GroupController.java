@@ -1,12 +1,11 @@
-package com.mohan.pulse.controllers;
+package com.mohan.pulse.group;
 
-import com.mohan.pulse.dtos.AddMembersRequest;
+import com.mohan.pulse.group.dtos.AddMembersRequest;
 import com.mohan.pulse.dtos.ApiResponse;
-import com.mohan.pulse.dtos.CreateGroupRequest;
-import com.mohan.pulse.dtos.GroupMemberResponse;
-import com.mohan.pulse.dtos.GroupResponse;
+import com.mohan.pulse.group.dtos.CreateGroupRequest;
+import com.mohan.pulse.group.dtos.GroupMemberResponse;
+import com.mohan.pulse.group.dtos.GroupResponse;
 import com.mohan.pulse.security.SecurityUtil;
-import com.mohan.pulse.services.GroupService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;

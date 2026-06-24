@@ -1,16 +1,11 @@
-package com.mohan.pulse.services;
+package com.mohan.pulse.group;
 
-import com.mohan.pulse.dtos.AddMembersRequest;
-import com.mohan.pulse.dtos.CreateGroupRequest;
-import com.mohan.pulse.dtos.GroupMemberResponse;
-import com.mohan.pulse.dtos.GroupResponse;
+import com.mohan.pulse.group.dtos.AddMembersRequest;
+import com.mohan.pulse.group.dtos.CreateGroupRequest;
+import com.mohan.pulse.group.dtos.GroupMemberResponse;
+import com.mohan.pulse.group.dtos.GroupResponse;
 import com.mohan.pulse.exceptions.ApiException;
-import com.mohan.pulse.models.Group;
-import com.mohan.pulse.models.GroupMember;
-import com.mohan.pulse.models.GroupRole;
 import com.mohan.pulse.models.User;
-import com.mohan.pulse.repositories.GroupMemberRepository;
-import com.mohan.pulse.repositories.GroupRepository;
 import com.mohan.pulse.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

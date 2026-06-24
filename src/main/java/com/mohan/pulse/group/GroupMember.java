@@ -1,5 +1,6 @@
-package com.mohan.pulse.models;
+package com.mohan.pulse.group;
 
+import com.mohan.pulse.models.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

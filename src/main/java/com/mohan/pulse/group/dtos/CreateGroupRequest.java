@@ -1,4 +1,4 @@
-package com.mohan.pulse.dtos;
+package com.mohan.pulse.group.dtos;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
