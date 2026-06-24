@@ -1,6 +1,5 @@
-package com.mohan.pulse.reaction;
+package com.mohan.pulse.message;
 
-import com.mohan.pulse.message.Message;
 import com.mohan.pulse.user.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -16,11 +15,11 @@ import java.time.Instant;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "reactions",
+@Table(name = "deleted_messages",
         uniqueConstraints = @UniqueConstraint(
                 columnNames = {"message_id", "user_id"}
         ))
-public class Reaction {
+public class DeletedMessage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,10 +33,6 @@ public class Reaction {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false)
-    private String emoji;
-
     @CreationTimestamp
-    @Column(updatable = false)
-    private Instant createdAt;
+    private Instant deletedAt;
 }

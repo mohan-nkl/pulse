@@ -1,7 +1,7 @@
 package com.mohan.pulse.status;
 
 import com.mohan.pulse.dtos.ApiResponse;
-import com.mohan.pulse.dtos.ChatMessageResponse;
+import com.mohan.pulse.message.dtos.ChatMessageResponse;
 import com.mohan.pulse.status.dtos.CreateStatusRequest;
 import com.mohan.pulse.status.dtos.StatusReplyRequest;
 import com.mohan.pulse.status.dtos.StatusResponse;
