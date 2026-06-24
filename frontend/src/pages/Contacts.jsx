@@ -182,10 +182,11 @@ export default function Contacts() {
 
     const displayName = (c) => c.alias || c.name || "Unknown";
     const avatarSrc = (name, url) =>
-        url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "U")}&size=40`;
+        url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "U")}&size=80&background=1f2c33&color=8696a0`;
 
     return (
         <div style={styles.page}>
+            <style>{css}</style>
             <div style={styles.card}>
 
                 {/* Header */}
@@ -197,11 +198,12 @@ export default function Contacts() {
                     <div style={styles.headerBtns}>
                         <button
                             style={styles.secondaryBtn}
+                            className="pulse-secondary"
                             onClick={() => { setShowSync(!showSync); setSyncResults([]); setSyncError(""); }}
                         >
                             {showSync ? "Hide Sync" : "Sync"}
                         </button>
-                        <button style={styles.primaryBtn} onClick={() => { setShowAdd(true); setAddError(""); }}>
+                        <button style={styles.primaryBtn} className="pulse-btn" onClick={() => { setShowAdd(true); setAddError(""); }}>
                             + Add
                         </button>
                     </div>
@@ -227,7 +229,7 @@ export default function Contacts() {
                 ) : (
                     <div style={styles.list}>
                         {contacts.map((c) => (
-                            <div key={c.id} style={styles.contactRow}>
+                            <div key={c.id} style={styles.contactRow} className="pulse-contact-row">
                                 <img
                                     src={avatarSrc(c.name, c.avatarUrl)}
                                     alt=""
@@ -246,12 +248,13 @@ export default function Contacts() {
                                             />
                                             <button
                                                 style={styles.saveBtn}
+                                                className="pulse-btn"
                                                 onClick={() => handleEditSave(c.id)}
                                                 disabled={editLoading}
                                             >
                                                 {editLoading ? "..." : "Save"}
                                             </button>
-                                            <button style={styles.cancelBtn} onClick={() => setEditingId(null)}>
+                                            <button style={styles.cancelBtnSm} onClick={() => setEditingId(null)}>
                                                 ✕
                                             </button>
                                         </div>
@@ -265,8 +268,12 @@ export default function Contacts() {
                                 </div>
                                 {editingId !== c.id && (
                                     <div style={styles.actions}>
-                                        <button style={styles.actionBtn} onClick={() => startEdit(c)} title="Edit alias">✏️</button>
-                                        <button style={styles.actionBtn} onClick={() => handleRemove(c.id)} title="Remove">🗑️</button>
+                                        <button style={styles.actionBtn} className="pulse-action" onClick={() => startEdit(c)} title="Edit alias">
+                                            <PencilIcon />
+                                        </button>
+                                        <button style={styles.actionBtn} className="pulse-action-danger" onClick={() => handleRemove(c.id)} title="Remove">
+                                            <TrashIcon />
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -286,7 +293,7 @@ export default function Contacts() {
                             value={syncInput}
                             onChange={(e) => setSyncInput(e.target.value)}
                         />
-                        <button style={styles.primaryBtn} onClick={handleSync} disabled={syncLoading}>
+                        <button style={styles.primaryBtn} className="pulse-btn" onClick={handleSync} disabled={syncLoading}>
                             {syncLoading ? "Searching..." : "Find on Pulse"}
                         </button>
                         {syncError && <div style={styles.error}>{syncError}</div>}
@@ -299,7 +306,7 @@ export default function Contacts() {
                                         Remove
                                     </button>
                                 ) : (
-                                    <button style={styles.addBtn} onClick={() => handleAddFromSync(u)}>
+                                    <button style={styles.addBtn} className="pulse-btn" onClick={() => handleAddFromSync(u)}>
                                         Add
                                     </button>
                                 )}
@@ -337,7 +344,7 @@ export default function Contacts() {
                                 <button type="button" style={styles.cancelBtn} onClick={() => setShowAdd(false)}>
                                     Cancel
                                 </button>
-                                <button type="submit" style={styles.primaryBtn} disabled={addLoading}>
+                                <button type="submit" style={styles.primaryBtn} className="pulse-btn" disabled={addLoading}>
                                     {addLoading ? "Adding..." : "Add"}
                                 </button>
                             </div>
@@ -349,44 +356,85 @@ export default function Contacts() {
     );
 }
 
+function PencilIcon() {
+    return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
+             strokeLinecap="round" strokeLinejoin="round" width="17" height="17">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        </svg>
+    );
+}
+
+function TrashIcon() {
+    return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
+             strokeLinecap="round" strokeLinejoin="round" width="17" height="17">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        </svg>
+    );
+}
+
 const styles = {
-    page: { display: "flex", justifyContent: "center", alignItems: "flex-start", minHeight: "100vh", padding: "40px 16px" },
-    card: { width: "100%", maxWidth: "480px", border: "1px solid #ddd", borderRadius: "8px", padding: "24px", display: "flex", flexDirection: "column", gap: "14px" },
-    header: { display: "flex", justifyContent: "space-between", alignItems: "center" },
-    title: { fontSize: "20px", margin: 0 },
+    page: {
+        display: "flex", justifyContent: "center", alignItems: "flex-start",
+        minHeight: "100vh", padding: "40px 16px", boxSizing: "border-box",
+        background: "radial-gradient(1200px 500px at 50% -10%, rgba(0,168,132,0.10), transparent 60%), #0b141a",
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    },
+    card: {
+        width: "100%", maxWidth: "480px",
+        background: "#111b21", border: "1px solid #1f2c33", borderRadius: "18px",
+        padding: "22px", display: "flex", flexDirection: "column", gap: "14px",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.45)", color: "#e9edef",
+    },
+    header: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" },
+    title: { fontSize: "20px", fontWeight: 600, margin: 0 },
     headerBtns: { display: "flex", gap: "8px" },
-    primaryBtn: { padding: "8px 14px", fontSize: "14px", background: "#1a73e8", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" },
-    secondaryBtn: { padding: "8px 14px", fontSize: "14px", background: "#f1f3f4", color: "#444", border: "none", borderRadius: "6px", cursor: "pointer" },
-    search: { padding: "10px", fontSize: "14px", border: "1px solid #ccc", borderRadius: "6px", width: "100%", boxSizing: "border-box" },
-    center: { textAlign: "center", color: "#888", padding: "20px 0" },
-    empty: { textAlign: "center", color: "#aaa", padding: "24px 0", fontSize: "14px" },
+    primaryBtn: { padding: "8px 15px", fontSize: "14px", fontWeight: 600, background: "#00a884", color: "#0b141a", border: "none", borderRadius: "9px", cursor: "pointer" },
+    secondaryBtn: { padding: "8px 15px", fontSize: "14px", fontWeight: 500, background: "#16222a", color: "#e9edef", border: "1px solid #2a3942", borderRadius: "9px", cursor: "pointer" },
+    search: { padding: "11px 12px", fontSize: "14px", background: "#0b141a", border: "1px solid #2a3942", borderRadius: "10px", width: "100%", boxSizing: "border-box", color: "#e9edef", outline: "none" },
+    center: { textAlign: "center", color: "#8696a0", padding: "20px 0" },
+    empty: { textAlign: "center", color: "#5b6b74", padding: "24px 0", fontSize: "14px" },
     list: { display: "flex", flexDirection: "column" },
-    contactRow: { display: "flex", alignItems: "center", gap: "12px", padding: "10px 6px", borderBottom: "1px solid #f0f0f0" },
-    avatar: { width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover", cursor: "pointer", flexShrink: 0 },
+    contactRow: { display: "flex", alignItems: "center", gap: "12px", padding: "11px 8px", borderBottom: "1px solid #1f2c33", borderRadius: "10px", transition: "background 0.15s ease" },
+    avatar: { width: "44px", height: "44px", borderRadius: "50%", objectFit: "cover", cursor: "pointer", flexShrink: 0, border: "1px solid #2a3942" },
     contactInfo: { flex: 1, display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 },
-    contactName: { fontSize: "14px", fontWeight: "500" },
-    realName: { fontSize: "12px", color: "#888" },
-    lastSeen: { fontSize: "12px", color: "#aaa" },
+    contactName: { fontSize: "14.5px", fontWeight: 600 },
+    realName: { fontSize: "12px", color: "#8696a0" },
+    lastSeen: { fontSize: "12px", color: "#5b6b74" },
     editRow: { display: "flex", gap: "6px", alignItems: "center" },
-    editInput: { flex: 1, padding: "6px 8px", fontSize: "13px", border: "1px solid #ccc", borderRadius: "4px" },
-    actions: { display: "flex", gap: "4px" },
-    actionBtn: { background: "none", border: "none", cursor: "pointer", fontSize: "16px", padding: "4px" },
-    saveBtn: { padding: "5px 10px", fontSize: "12px", background: "#1a73e8", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" },
-    cancelBtn: { padding: "5px 10px", fontSize: "12px", background: "#f1f3f4", color: "#444", border: "1px solid #ccc", borderRadius: "4px", cursor: "pointer" },
-    syncPanel: { display: "flex", flexDirection: "column", gap: "10px", borderTop: "1px solid #eee", paddingTop: "14px" },
-    syncTitle: { margin: 0, fontSize: "14px", fontWeight: "500", color: "#333" },
-    syncHint: { margin: 0, fontSize: "12px", color: "#888" },
-    textarea: { padding: "10px", fontSize: "13px", border: "1px solid #ccc", borderRadius: "6px", resize: "vertical", fontFamily: "monospace", boxSizing: "border-box" },
-    syncRow: { display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", borderBottom: "1px solid #f5f5f5" },
-    addBtn: { marginLeft: "auto", padding: "5px 12px", fontSize: "13px", background: "#1a73e8", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" },
-    removeBtn: { marginLeft: "auto", padding: "5px 12px", fontSize: "13px", background: "#fff", color: "#d32f2f", border: "1px solid #d32f2f", borderRadius: "4px", cursor: "pointer" },
-    overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 },
-    modal: { background: "#fff", borderRadius: "8px", padding: "24px", width: "320px", display: "flex", flexDirection: "column", gap: "12px" },
-    modalTitle: { margin: 0, fontSize: "18px" },
-    form: { display: "flex", flexDirection: "column", gap: "10px" },
-    label: { fontSize: "13px", color: "#555" },
-    input: { padding: "10px", fontSize: "14px", border: "1px solid #ccc", borderRadius: "6px" },
-    modalBtns: { display: "flex", gap: "8px", marginTop: "4px" },
-    error: { background: "#fdecea", color: "#b71c1c", padding: "10px", borderRadius: "6px", fontSize: "13px" },
-    successBox: { background: "#e8f5e9", color: "#2e7d32", padding: "10px", borderRadius: "6px", fontSize: "13px" },
+    editInput: { flex: 1, padding: "7px 9px", fontSize: "13px", background: "#0b141a", border: "1px solid #2a3942", borderRadius: "7px", color: "#e9edef", outline: "none" },
+    actions: { display: "flex", gap: "2px" },
+    actionBtn: { background: "none", border: "none", cursor: "pointer", padding: "7px", borderRadius: "8px", color: "#8696a0", display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s ease, color 0.15s ease" },
+    saveBtn: { padding: "6px 12px", fontSize: "12px", fontWeight: 600, background: "#00a884", color: "#0b141a", border: "none", borderRadius: "7px", cursor: "pointer" },
+    cancelBtn: { flex: 1, padding: "11px", fontSize: "14px", fontWeight: 500, background: "transparent", color: "#e9edef", border: "1px solid #2a3942", borderRadius: "10px", cursor: "pointer" },
+    cancelBtnSm: { padding: "6px 10px", fontSize: "12px", background: "transparent", color: "#8696a0", border: "1px solid #2a3942", borderRadius: "7px", cursor: "pointer" },
+    syncPanel: { display: "flex", flexDirection: "column", gap: "10px", borderTop: "1px solid #1f2c33", paddingTop: "14px" },
+    syncTitle: { margin: 0, fontSize: "14px", fontWeight: 600, color: "#e9edef" },
+    syncHint: { margin: 0, fontSize: "12px", color: "#8696a0" },
+    textarea: { padding: "10px", fontSize: "13px", background: "#0b141a", border: "1px solid #2a3942", borderRadius: "10px", resize: "vertical", fontFamily: "monospace", boxSizing: "border-box", color: "#e9edef", outline: "none" },
+    syncRow: { display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", borderBottom: "1px solid #1f2c33" },
+    addBtn: { marginLeft: "auto", padding: "6px 14px", fontSize: "13px", fontWeight: 600, background: "#00a884", color: "#0b141a", border: "none", borderRadius: "7px", cursor: "pointer" },
+    removeBtn: { marginLeft: "auto", padding: "6px 14px", fontSize: "13px", background: "transparent", color: "#f15c6d", border: "1px solid #f15c6d", borderRadius: "7px", cursor: "pointer" },
+    overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: "16px" },
+    modal: { background: "#111b21", border: "1px solid #1f2c33", borderRadius: "16px", padding: "24px", width: "340px", maxWidth: "100%", display: "flex", flexDirection: "column", gap: "12px", color: "#e9edef", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" },
+    modalTitle: { margin: 0, fontSize: "18px", fontWeight: 600 },
+    form: { display: "flex", flexDirection: "column", gap: "8px" },
+    label: { fontSize: "13px", color: "#8696a0", marginTop: "6px" },
+    input: { padding: "11px 12px", fontSize: "14px", background: "#0b141a", border: "1px solid #2a3942", borderRadius: "9px", color: "#e9edef", boxSizing: "border-box", outline: "none" },
+    modalBtns: { display: "flex", gap: "8px", marginTop: "8px" },
+    error: { background: "rgba(241,92,109,0.12)", color: "#f7919c", padding: "10px 12px", borderRadius: "9px", fontSize: "13px" },
+    successBox: { background: "rgba(0,168,132,0.14)", color: "#38d39f", padding: "10px 12px", borderRadius: "9px", fontSize: "13px" },
 };
+
+const css = `
+.pulse-btn:hover { background: #06cf7f !important; }
+.pulse-btn:disabled { opacity: 0.6; cursor: default; }
+.pulse-secondary:hover { background: #1d2a32 !important; }
+.pulse-contact-row:hover { background: #16222a; }
+.pulse-action:hover { background: rgba(0,168,132,0.16); color: #38d39f !important; }
+.pulse-action-danger:hover { background: rgba(241,92,109,0.14); color: #f15c6d !important; }
+input::placeholder, textarea::placeholder { color: #5b6b74; }
+`;
