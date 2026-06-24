@@ -10,7 +10,7 @@ import com.mohan.pulse.exceptions.ApiException;
 import com.mohan.pulse.models.Status;
 import com.mohan.pulse.models.StatusView;
 import com.mohan.pulse.models.User;
-import com.mohan.pulse.repositories.ContactRepository;
+import com.mohan.pulse.contact.ContactRepository;
 import com.mohan.pulse.repositories.StatusRepository;
 import com.mohan.pulse.repositories.StatusViewRepository;
 import com.mohan.pulse.repositories.UserRepository;

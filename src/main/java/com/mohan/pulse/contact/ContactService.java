@@ -1,10 +1,8 @@
-package com.mohan.pulse.services;
+package com.mohan.pulse.contact;
 
-import com.mohan.pulse.dtos.*;
+import com.mohan.pulse.contact.dtos.*;
 import com.mohan.pulse.exceptions.ApiException;
-import com.mohan.pulse.models.Contact;
 import com.mohan.pulse.models.User;
-import com.mohan.pulse.repositories.ContactRepository;
 import com.mohan.pulse.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
