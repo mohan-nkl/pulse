@@ -1,4 +1,4 @@
-package com.mohan.pulse.security;
+package com.mohan.pulse.auth;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.server.ServerHttpRequest;

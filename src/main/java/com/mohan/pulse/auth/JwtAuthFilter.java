@@ -1,4 +1,4 @@
-package com.mohan.pulse.security;
+package com.mohan.pulse.auth;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

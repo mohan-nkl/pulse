@@ -1,7 +1,7 @@
 package com.mohan.pulse.configs;
 
-import com.mohan.pulse.security.JwtAuthFilter;
-import com.mohan.pulse.security.JwtAuthenticationEntryPoint;
+import com.mohan.pulse.auth.JwtAuthFilter;
+import com.mohan.pulse.auth.JwtAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.Customizer;
 import org.springframework.context.annotation.Bean;

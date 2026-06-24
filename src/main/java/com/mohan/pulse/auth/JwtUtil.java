@@ -1,4 +1,4 @@
-package com.mohan.pulse.security;
+package com.mohan.pulse.auth;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

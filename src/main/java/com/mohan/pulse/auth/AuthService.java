@@ -1,12 +1,11 @@
-package com.mohan.pulse.services;
+package com.mohan.pulse.auth;
 
-import com.mohan.pulse.dtos.AuthResponse;
-import com.mohan.pulse.dtos.LoginRequest;
-import com.mohan.pulse.dtos.SignupRequest;
+import com.mohan.pulse.auth.dtos.AuthResponse;
+import com.mohan.pulse.auth.dtos.LoginRequest;
+import com.mohan.pulse.auth.dtos.SignupRequest;
 import com.mohan.pulse.exceptions.ApiException;
 import com.mohan.pulse.models.User;
 import com.mohan.pulse.repositories.UserRepository;
-import com.mohan.pulse.security.JwtUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;

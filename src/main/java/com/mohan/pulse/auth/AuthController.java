@@ -1,10 +1,9 @@
-package com.mohan.pulse.controllers;
+package com.mohan.pulse.auth;
 
+import com.mohan.pulse.auth.dtos.AuthResponse;
+import com.mohan.pulse.auth.dtos.LoginRequest;
+import com.mohan.pulse.auth.dtos.SignupRequest;
 import com.mohan.pulse.dtos.ApiResponse;
-import com.mohan.pulse.dtos.AuthResponse;
-import com.mohan.pulse.dtos.LoginRequest;
-import com.mohan.pulse.dtos.SignupRequest;
-import com.mohan.pulse.services.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;

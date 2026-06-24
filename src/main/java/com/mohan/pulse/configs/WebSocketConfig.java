@@ -1,7 +1,7 @@
 package com.mohan.pulse.configs;
 
-import com.mohan.pulse.security.WebSocketAuthInterceptor;
-import com.mohan.pulse.security.WebSocketHandshakeHandler;
+import com.mohan.pulse.auth.WebSocketAuthInterceptor;
+import com.mohan.pulse.auth.WebSocketHandshakeHandler;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
