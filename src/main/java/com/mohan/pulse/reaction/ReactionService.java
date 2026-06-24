@@ -1,15 +1,13 @@
-package com.mohan.pulse.services;
+package com.mohan.pulse.reaction;
 
-import com.mohan.pulse.dtos.ReactionEntry;
-import com.mohan.pulse.dtos.ReactionUpdate;
 import com.mohan.pulse.exceptions.ApiException;
 import com.mohan.pulse.group.GroupMember;
 import com.mohan.pulse.models.Message;
-import com.mohan.pulse.models.Reaction;
 import com.mohan.pulse.models.User;
 import com.mohan.pulse.group.GroupMemberRepository;
+import com.mohan.pulse.reaction.dtos.ReactionEntry;
+import com.mohan.pulse.reaction.dtos.ReactionUpdate;
 import com.mohan.pulse.repositories.MessageRepository;
-import com.mohan.pulse.repositories.ReactionRepository;
 import com.mohan.pulse.repositories.UserRepository;
 import com.mohan.pulse.utils.ConversationUtil;
 import lombok.RequiredArgsConstructor;

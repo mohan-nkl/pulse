@@ -1,9 +1,8 @@
-package com.mohan.pulse.controllers;
+package com.mohan.pulse.reaction;
 
 import com.mohan.pulse.dtos.ApiResponse;
-import com.mohan.pulse.dtos.ReactionRequest;
+import com.mohan.pulse.reaction.dtos.ReactionRequest;
 import com.mohan.pulse.security.SecurityUtil;
-import com.mohan.pulse.services.ReactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
