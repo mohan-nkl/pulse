@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.util.List;
 
 @Getter
 @AllArgsConstructor
@@ -18,6 +19,19 @@ public class MessageResponse {
     private int deliveredCount;
     private int readCount;
     private int totalRecipients;
+
     private String type;
     private String mediaUrl;
+
+    private Long replyToId;
+    private Long replyToSenderId;
+    private String replyToSenderName;
+    private String replyToContent;
+    private String replyToType;
+    private boolean replyToDeleted;
+
+    private List<ReactionEntry> reactions;
+
+    // Non-null only when this message is a status reply.
+    private StatusPreviewDto statusPreview;
 }

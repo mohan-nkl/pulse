@@ -5,6 +5,7 @@ import NotificationToast from "../components/NotificationToast";
 import HomeButton from "../components/HomeButton";
 import client from "../api/client";
 import { uploadMedia, getMessageType } from "../api/mediaApi";
+import { reactToMessage, unreactToMessage } from "../api/reactionApi";
 import {
     connectWebSocket,
     sendMessage,
@@ -173,6 +174,96 @@ function MessageContent({ message, onImageClick }) {
     return <span style={styles.text}>{content}</span>;
 }
 
+// A one-line preview of a media message, used inside the reply quote block
+// when the original has no caption (e.g. "📷 Photo").
+function mediaPreviewLabel(type) {
+    if (type === "IMAGE") return "📷 Photo";
+    if (type === "VIDEO") return "🎥 Video";
+    if (type === "AUDIO") return "🎵 Audio";
+    if (type === "FILE") return "📎 File";
+    return "";
+}
+
+// The quote block shown INSIDE a bubble when the message is a reply.
+// Reads the flat replyTo* fields the backend attaches. Clicking it asks the
+// parent to scroll to / highlight the original (if it's still loaded).
+function QuotedMessage({ message, currentUserId, onJump }) {
+    if (!message.replyToId) return null;
+
+    const fromMe = message.replyToSenderId === currentUserId;
+    const who = message.replyToDeleted
+        ? ""
+        : fromMe
+            ? "You"
+            : message.replyToSenderName || "Unknown";
+
+    let preview;
+    if (message.replyToDeleted) {
+        preview = "This message was deleted";
+    } else if (message.replyToContent) {
+        preview = message.replyToContent;
+    } else {
+        preview = mediaPreviewLabel(message.replyToType);
+    }
+
+    return (
+        <div
+            style={styles.quoteBlock}
+            onClick={(e) => {
+                e.stopPropagation();
+                onJump?.(message.replyToId);
+            }}
+        >
+            {who && <div style={styles.quoteAuthor}>{who}</div>}
+            <div
+                style={{
+                    ...styles.quoteText,
+                    ...(message.replyToDeleted ? styles.quoteDeleted : {}),
+                }}
+            >
+                {preview}
+            </div>
+        </div>
+    );
+}
+
+// A small quick-pick set for the reaction popover. "Any emoji" is supported by
+// the backend (it stores a plain string); swap this for a full picker library
+// later if you want the whole keyboard.
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+// The reaction pills shown under a bubble. Groups the flat reaction list by
+// emoji into { emoji, count, mine }, and lets you toggle your own off by
+// tapping a pill you're part of.
+function ReactionPills({ reactions, currentUserId, onToggle }) {
+    if (!reactions || reactions.length === 0) return null;
+
+    // emoji -> { count, mine }
+    const groups = {};
+    for (const r of reactions) {
+        const g = groups[r.emoji] || { count: 0, mine: false };
+        g.count += 1;
+        if (r.userId === currentUserId) g.mine = true;
+        groups[r.emoji] = g;
+    }
+
+    return (
+        <div style={styles.pillRow}>
+            {Object.entries(groups).map(([emoji, g]) => (
+                <button
+                    key={emoji}
+                    style={{ ...styles.pill, ...(g.mine ? styles.pillMine : {}) }}
+                    onClick={() => onToggle(emoji, g.mine)}
+                    title={g.mine ? "Tap to remove your reaction" : "Tap to react"}
+                >
+                    <span>{emoji}</span>
+                    <span style={styles.pillCount}>{g.count}</span>
+                </button>
+            ))}
+        </div>
+    );
+}
+
 export default function ChatPage() {
     const { user } = useAuth();
     const currentUserId = user?.userId;
@@ -180,6 +271,7 @@ export default function ChatPage() {
 
     const [contacts, setContacts] = useState([]);
     const [groups, setGroups] = useState([]);
+    const [activeToast, setActiveToast] = useState(null);
 
     // The open conversation: either { type: "dm", userId, name }
     // or a group object { type: "group", id, name, myRole, ... }. null = nothing open.
@@ -207,7 +299,19 @@ export default function ChatPage() {
     // Media: upload-in-progress flag and the currently-open lightbox image.
     const [isUploading, setIsUploading] = useState(false);
     const [lightboxUrl, setLightboxUrl] = useState(null);
-    const [activeToast, setActiveToast] = useState(null);
+
+    // The message the composer is currently replying to (null = not replying).
+    // Holds a small snapshot { id, senderId, senderName, content, type } so the
+    // quote bar can render without re-finding the message.
+    const [replyingTo, setReplyingTo] = useState(null);
+
+    // messageId whose emoji quick-picker is currently open (null = none open).
+    const [emojiPickerFor, setEmojiPickerFor] = useState(null);
+
+    // messageId currently hovered (shows the ⌄ chevron) and the message whose
+    // React/Reply menu is open (null = none).
+    const [hoveredMessageId, setHoveredMessageId] = useState(null);
+    const [menuFor, setMenuFor] = useState(null);
 
     const openConversationIdRef = useRef(null);
     const bottomRef = useRef(null);
@@ -215,8 +319,22 @@ export default function ChatPage() {
     // mount) never reads a stale/undefined value.
     const currentUserIdRef = useRef(null);
 
+    // Whether THIS browser window is focused right now. We only send read
+    // receipts when focused — having the chat open in a background window
+    // (e.g. two windows side by side while testing) must NOT mark messages read.
+    const windowFocusedRef = useRef(
+        typeof document === "undefined" ? true : document.hasFocus()
+    );
+    // If a message arrives (or a chat is opened) while this window is NOT
+    // focused, we remember the conversation here and send the read receipt the
+    // moment the window regains focus — never before.
+    const pendingReadRef = useRef(null);
+
     // Hidden file input for the attach (paperclip) button.
     const fileInputRef = useRef(null);
+
+    // id -> bubble DOM node, so tapping a reply quote can scroll to the original.
+    const messageRefs = useRef({});
 
     // Outbound-typing bookkeeping (refs, not state — they must never re-render).
     const lastTypingSentRef = useRef(0);       // when we last sent "typing: true"
@@ -295,7 +413,16 @@ export default function ChatPage() {
 
                 if (message.conversationId === openConversationIdRef.current) {
                     setMessages((previous) => [...previous, message]);
-                    sendRead(message.conversationId);     // I'm looking at it
+                    if (windowFocusedRef.current) {
+                        // Focused: read covers delivered in one step (backend
+                        // markRead also matches already-delivered rows).
+                        sendRead(message.conversationId);
+                    } else {
+                        // Open but not focused: mark delivered now, defer the
+                        // read until the window regains focus.
+                        sendDelivered(message.conversationId);
+                        pendingReadRef.current = message.conversationId;
+                    }
                 } else {
                     sendDelivered(message.conversationId); // arrived, chat not open
                 }
@@ -328,8 +455,18 @@ export default function ChatPage() {
                     clearTyping(event.conversationId, event.userId);
                 }
             },
+            (update) => {
+                // A message's reactions changed — replace that message's full list.
+                setMessages((previous) =>
+                    previous.map((m) =>
+                        m.id === update.messageId
+                            ? { ...m, reactions: update.reactions }
+                            : m
+                    )
+                );
+            },
             (notification) => {
-                // If the user is already in this conversation, ignore the notification.
+                // New-message notification. If I'm already in this conversation, ignore.
                 if (notification.conversationId === openConversationIdRef.current) return;
 
                 handleNotification(notification);
@@ -355,6 +492,55 @@ export default function ChatPage() {
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
+
+    // Track whether this window is focused. On regaining focus, if the open
+    // chat had a message arrive while we were away, send its read receipt now.
+    useEffect(() => {
+        const onFocus = () => {
+            windowFocusedRef.current = true;
+            if (pendingReadRef.current) {
+                const convId = pendingReadRef.current;
+                pendingReadRef.current = null;
+                // Only mark read if that conversation is still the open one.
+                if (convId === openConversationIdRef.current) {
+                    sendRead(convId);
+                }
+            }
+        };
+        const onBlur = () => {
+            windowFocusedRef.current = false;
+        };
+        window.addEventListener("focus", onFocus);
+        window.addEventListener("blur", onBlur);
+        return () => {
+            window.removeEventListener("focus", onFocus);
+            window.removeEventListener("blur", onBlur);
+        };
+    }, []);
+
+    // Send a read receipt only if this window is focused; otherwise defer it
+    // until focus returns (WhatsApp behaviour — an open-but-background chat
+    // does not mark messages read).
+    const markReadIfFocused = (conversationId) => {
+        if (windowFocusedRef.current) {
+            sendRead(conversationId);
+        } else {
+            pendingReadRef.current = conversationId;
+        }
+    };
+
+    // Close the React/Reply menu and emoji picker on any click outside of them.
+    // The chevron, menu, and picker stop propagation, so their own clicks don't
+    // trigger this; a click anywhere else dismisses them.
+    useEffect(() => {
+        if (menuFor === null && emojiPickerFor === null) return;
+        const onDocClick = () => {
+            setMenuFor(null);
+            setEmojiPickerFor(null);
+        };
+        document.addEventListener("click", onDocClick);
+        return () => document.removeEventListener("click", onDocClick);
+    }, [menuFor, emojiPickerFor]);
 
     // ---- received typing: record + auto-expire ----
 
@@ -476,6 +662,7 @@ export default function ChatPage() {
         const convId = dmConversationId(currentUserId, contact.userId);
         // Leaving the previous chat: stop any typing signal there.
         stopTypingNow(openConversationIdRef.current);
+        setReplyingTo(null); // don't carry a reply draft into another chat
         setSelected({ type: "dm", userId: contact.userId, name: contact.name });
         openConversationIdRef.current = convId;
         setShowMembers(false);
@@ -489,8 +676,8 @@ export default function ChatPage() {
         }
 
         // Opening a chat means I've read everything in it.
-        sendRead(convId);
-        clearConversation(convId);
+        markReadIfFocused(convId);
+        clearConversation(convId); // zero its unread badge
 
         // Refresh this person's presence for the header.
         try {
@@ -505,6 +692,7 @@ export default function ChatPage() {
         const convId = groupConversationId(group.id);
         // Leaving the previous chat: stop any typing signal there.
         stopTypingNow(openConversationIdRef.current);
+        setReplyingTo(null); // don't carry a reply draft into another chat
         setSelected({ type: "group", ...group });
         openConversationIdRef.current = convId;
         setShowMembers(false);
@@ -530,8 +718,65 @@ export default function ChatPage() {
         }
 
         // Opening the group means I've read everything in it.
-        sendRead(convId);
-        clearConversation(convId);
+        markReadIfFocused(convId);
+        clearConversation(convId); // zero its unread badge
+    };
+
+    // ---- replies ----
+
+    // Start replying to a message: capture a small snapshot for the quote bar.
+    const startReply = (message) => {
+        setReplyingTo({
+            id: message.id,
+            senderId: message.senderId,
+            senderName:
+                message.senderId === currentUserId
+                    ? "You"
+                    : memberNames[message.senderId] || selected?.name || "Unknown",
+            content: message.content,
+            type: message.type,
+        });
+    };
+
+    const cancelReply = () => setReplyingTo(null);
+
+    // Scroll to and briefly highlight the original message a reply points at.
+    const jumpToMessage = (messageId) => {
+        const node = messageRefs.current[messageId];
+        if (!node) return; // original not loaded (e.g. far up history)
+        node.scrollIntoView({ behavior: "smooth", block: "center" });
+        node.style.transition = "background 0.4s";
+        const original = node.style.background;
+        node.style.background = "#3a4a3f";
+        setTimeout(() => {
+            node.style.background = original;
+        }, 800);
+    };
+
+    // ---- reactions ----
+
+    // Tapping an existing pill: remove mine if it's mine, else react with it.
+    const toggleReaction = async (messageId, emoji, mine) => {
+        try {
+            if (mine) {
+                await unreactToMessage(messageId);
+            } else {
+                await reactToMessage(messageId, emoji);
+            }
+        } catch (error) {
+            console.error("Reaction failed:", error);
+        }
+        // The updated list arrives via the /user/queue/reactions broadcast.
+    };
+
+    // Picking from the quick-picker popover.
+    const pickReaction = async (messageId, emoji) => {
+        setEmojiPickerFor(null);
+        try {
+            await reactToMessage(messageId, emoji);
+        } catch (error) {
+            console.error("Reaction failed:", error);
+        }
     };
 
     const handleSend = () => {
@@ -540,12 +785,15 @@ export default function ChatPage() {
             return;
         }
 
+        const replyToId = replyingTo ? replyingTo.id : null;
+
         if (selected.type === "dm") {
-            sendMessage(selected.userId, text);
+            sendMessage(selected.userId, text, "TEXT", null, replyToId);
         } else {
-            sendGroupMessage(selected.id, text);
+            sendGroupMessage(selected.id, text, "TEXT", null, replyToId);
         }
         setDraft("");
+        setReplyingTo(null); // reply consumed
         // Sending a message means I've stopped typing.
         stopTypingNow(openConversationIdRef.current);
     };
@@ -564,11 +812,14 @@ export default function ChatPage() {
         try {
             const mediaUrl = await uploadMedia(file); // upload to server, get back URL
 
+            const replyToId = replyingTo ? replyingTo.id : null;
+
             if (selected.type === "dm") {
-                sendMessage(selected.userId, "", messageType, mediaUrl);
+                sendMessage(selected.userId, "", messageType, mediaUrl, replyToId);
             } else {
-                sendGroupMessage(selected.id, "", messageType, mediaUrl);
+                sendGroupMessage(selected.id, "", messageType, mediaUrl, replyToId);
             }
+            setReplyingTo(null); // reply consumed
         } catch (error) {
             console.error("Media upload failed:", error);
             alert("Upload failed. Please try again.");
@@ -615,8 +866,8 @@ export default function ChatPage() {
                 <p style={styles.sectionLabel}>Groups</p>
                 {groups.length === 0 && <p style={styles.empty}>No groups yet.</p>}
                 {groups.map((group) => {
-                    const convId = groupConversationId(group.id);
-                    const unread = unreadPerConversation[convId] || 0;
+                    const gConvId = groupConversationId(group.id);
+                    const unread = unreadPerConversation[gConvId] || 0;
                     return (
                         <button
                             key={`g-${group.id}`}
@@ -628,10 +879,10 @@ export default function ChatPage() {
                             }}
                             onClick={() => openGroup(group)}
                         >
-                            <span style={styles.itemRow}>
-                                <span># {group.name}</span>
-                                {unread > 0 && <span style={styles.badge}>{unread}</span>}
-                            </span>
+                        <span style={styles.itemRow}>
+                            <span># {group.name}</span>
+                            {unread > 0 && <span style={styles.unreadBadge}>{unread}</span>}
+                        </span>
                         </button>
                     );
                 })}
@@ -639,8 +890,8 @@ export default function ChatPage() {
                 <p style={styles.sectionLabel}>Chats</p>
                 {contacts.length === 0 && <p style={styles.empty}>No contacts yet.</p>}
                 {contacts.map((contact) => {
-                    const convId = dmConversationId(currentUserId, contact.userId);
-                    const unread = unreadPerConversation[convId] || 0;
+                    const cConvId = dmConversationId(currentUserId, contact.userId);
+                    const unread = unreadPerConversation[cConvId] || 0;
                     return (
                         <button
                             key={`c-${contact.userId}`}
@@ -652,20 +903,20 @@ export default function ChatPage() {
                             }}
                             onClick={() => openDirect(contact)}
                         >
-                            <span style={styles.itemRow}>
-                                <span>{contact.name || "Unknown"}</span>
-                                <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                    {unread > 0 && <span style={styles.badge}>{unread}</span>}
-                                    <span
-                                        style={{
-                                            ...styles.dot,
-                                            background: presence[contact.userId]?.online
-                                                ? "#00d96a"
-                                                : "#3b4a54",
-                                        }}
-                                    />
-                                </span>
+                        <span style={styles.itemRow}>
+                            <span>{contact.name || "Unknown"}</span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                                {unread > 0 && <span style={styles.unreadBadge}>{unread}</span>}
+                                <span
+                                    style={{
+                                        ...styles.dot,
+                                        background: presence[contact.userId]?.online
+                                            ? "#00d96a"
+                                            : "#3b4a54",
+                                    }}
+                                />
                             </span>
+                        </span>
                         </button>
                     );
                 })}
@@ -700,74 +951,219 @@ export default function ChatPage() {
                             {messages.map((message) => {
                                 const mine = message.senderId === currentUserId;
                                 const showSender = selected.type === "group" && !mine;
+                                const hovered = hoveredMessageId === message.id;
+                                const menuOpen = menuFor === message.id;
+                                const pickerOpen = emojiPickerFor === message.id;
                                 return (
                                     <div
                                         key={message.id}
                                         style={{
-                                            ...styles.bubble,
-                                            ...(mine ? styles.bubbleMine : styles.bubbleTheirs),
+                                            ...styles.row,
+                                            alignSelf: mine ? "flex-end" : "flex-start",
+                                            alignItems: mine ? "flex-end" : "flex-start",
                                         }}
+                                        onMouseEnter={() => setHoveredMessageId(message.id)}
+                                        onMouseLeave={() => setHoveredMessageId(null)}
                                     >
-                                        {showSender && (
-                                            <div style={styles.sender}>
-                                                {memberNames[message.senderId] || "Unknown"}
-                                            </div>
-                                        )}
+                                        <div
+                                            ref={(node) => {
+                                                if (node) messageRefs.current[message.id] = node;
+                                                else delete messageRefs.current[message.id];
+                                            }}
+                                            style={{
+                                                ...styles.bubble,
+                                                ...(mine ? styles.bubbleMine : styles.bubbleTheirs),
+                                            }}
+                                        >
+                                            {showSender && (
+                                                <div style={styles.sender}>
+                                                    {memberNames[message.senderId] || "Unknown"}
+                                                </div>
+                                            )}
 
-                                        {/* renders text, image, video, audio, or file */}
-                                        <MessageContent message={message} onImageClick={setLightboxUrl} />
+                                            {/* Status reply preview — shown above the reply text */}
+                                            {message.statusPreview && (
+                                                <div style={styles.statusPreview}>
+                                                    {message.statusPreview.mediaUrl && (
+                                                        <img
+                                                            src={message.statusPreview.mediaUrl}
+                                                            alt="status"
+                                                            style={styles.previewImg}
+                                                        />
+                                                    )}
+                                                    <div style={styles.previewBody}>
+                                                    <span style={styles.previewAuthor}>
+                                                        {message.statusPreview.authorName}'s status
+                                                    </span>
+                                                        {message.statusPreview.content && (
+                                                            <span style={styles.previewText}>
+                                                            {message.statusPreview.content.length > 60
+                                                                ? message.statusPreview.content.slice(0, 60) + "…"
+                                                                : message.statusPreview.content}
+                                                        </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
 
-                                        <span style={styles.meta}>
-                                            <span style={styles.time}>
-                                                {formatTime(message.createdAt)}
+                                            {/* reply quote, only on reply messages */}
+                                            <QuotedMessage
+                                                message={message}
+                                                currentUserId={currentUserId}
+                                                onJump={jumpToMessage}
+                                            />
+
+                                            {/* renders text, image, video, audio, or file */}
+                                            <MessageContent message={message} onImageClick={setLightboxUrl} />
+
+                                            <span style={styles.meta}>
+                                                <span style={styles.time}>
+                                                    {formatTime(message.createdAt)}
+                                                </span>
+                                                {mine && <Ticks message={message} />}
                                             </span>
-                                            {mine && <Ticks message={message} />}
-                                        </span>
+
+                                            {/* hover chevron: opens the React / Reply menu */}
+                                            {(hovered || menuOpen || pickerOpen) && (
+                                                <button
+                                                    style={{
+                                                        ...styles.chevron,
+                                                        ...(mine ? styles.chevronMine : styles.chevronTheirs),
+                                                    }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEmojiPickerFor(null);
+                                                        setMenuFor(menuOpen ? null : message.id);
+                                                    }}
+                                                    title="More"
+                                                >
+                                                    ⌄
+                                                </button>
+                                            )}
+
+                                            {/* the little React / Reply menu */}
+                                            {menuOpen && (
+                                                <div
+                                                    style={styles.actionMenu}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <button
+                                                        style={styles.actionMenuItem}
+                                                        onClick={() => {
+                                                            setMenuFor(null);
+                                                            setEmojiPickerFor(message.id);
+                                                        }}
+                                                    >
+                                                        React
+                                                    </button>
+                                                    <button
+                                                        style={styles.actionMenuItem}
+                                                        onClick={() => {
+                                                            setMenuFor(null);
+                                                            startReply(message);
+                                                        }}
+                                                    >
+                                                        Reply
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {/* emoji quick-picker, floating ABOVE the bubble */}
+                                            {pickerOpen && (
+                                                <div
+                                                    style={styles.emojiPopover}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    {QUICK_EMOJIS.map((emoji) => (
+                                                        <button
+                                                            key={emoji}
+                                                            style={styles.emojiChoice}
+                                                            onClick={() => pickReaction(message.id, emoji)}
+                                                        >
+                                                            {emoji}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* reaction pills sit UNDER the bubble */}
+                                        <ReactionPills
+                                            reactions={message.reactions}
+                                            currentUserId={currentUserId}
+                                            onToggle={(emoji, isMine) =>
+                                                toggleReaction(message.id, emoji, isMine)
+                                            }
+                                        />
                                     </div>
                                 );
                             })}
                             <div ref={bottomRef} />
                         </div>
 
-                        <div style={styles.composer}>
-                            {/* hidden file input */}
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                style={{ display: "none" }}
-                                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
-                                onChange={handleFileSelected}
-                            />
+                        <div style={styles.composerWrap}>
+                            {replyingTo && (
+                                <div style={styles.replyBar}>
+                                    <div style={styles.replyBarBody}>
+                                        <div style={styles.replyBarAuthor}>
+                                            Replying to {replyingTo.senderName}
+                                        </div>
+                                        <div style={styles.replyBarText}>
+                                            {replyingTo.content
+                                                ? replyingTo.content
+                                                : mediaPreviewLabel(replyingTo.type)}
+                                        </div>
+                                    </div>
+                                    <button
+                                        style={styles.replyBarClose}
+                                        onClick={cancelReply}
+                                        title="Cancel reply"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            )}
 
-                            {/* paperclip / attach button */}
-                            <button
-                                style={styles.attachButton}
-                                onClick={() => fileInputRef.current.click()}
-                                disabled={isUploading}
-                                title="Attach a file"
-                            >
-                                📎
-                            </button>
+                            <div style={styles.composer}>
+                                {/* hidden file input */}
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    style={{ display: "none" }}
+                                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+                                    onChange={handleFileSelected}
+                                />
 
-                            <input
-                                style={styles.input}
-                                value={isUploading ? "Uploading..." : draft}
-                                onChange={(e) => {
-                                    setDraft(e.target.value);
-                                    handleTypingActivity();
-                                }}
-                                onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                                placeholder="Type a message"
-                                disabled={isUploading}
-                            />
+                                {/* paperclip / attach button */}
+                                <button
+                                    style={styles.attachButton}
+                                    onClick={() => fileInputRef.current.click()}
+                                    disabled={isUploading}
+                                    title="Attach a file"
+                                >
+                                    📎
+                                </button>
 
-                            <button
-                                style={styles.sendButton}
-                                onClick={handleSend}
-                                disabled={isUploading}
-                            >
-                                Send
-                            </button>
+                                <input
+                                    style={styles.input}
+                                    value={isUploading ? "Uploading..." : draft}
+                                    onChange={(e) => {
+                                        setDraft(e.target.value);
+                                        handleTypingActivity();
+                                    }}
+                                    onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                                    placeholder="Type a message"
+                                    disabled={isUploading}
+                                />
+
+                                <button
+                                    style={styles.sendButton}
+                                    onClick={handleSend}
+                                    disabled={isUploading}
+                                >
+                                    Send
+                                </button>
+                            </div>
                         </div>
                     </>
                 )}
@@ -867,9 +1263,10 @@ const styles = {
         borderRadius: "50%",
         flex: "0 0 auto",
     },
-    badge: {
+    unreadBadge: {
         minWidth: "18px",
         height: "18px",
+        padding: "0 5px",
         borderRadius: "9px",
         background: "#00a884",
         color: "#fff",
@@ -878,7 +1275,6 @@ const styles = {
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "0 4px",
     },
     chat: { flex: 1, display: "flex", flexDirection: "column", background: "#0b141a" },
     placeholder: {
@@ -914,20 +1310,55 @@ const styles = {
         padding: "16px",
         display: "flex",
         flexDirection: "column",
-        gap: "8px",
+        gap: "10px",
+    },
+    // one message = a column: [bubble] then [pills]. The row hugs its content
+    // and the JSX sets alignItems (flex-end for mine, flex-start for theirs).
+    row: {
+        display: "flex",
+        flexDirection: "column",
+        maxWidth: "65%",
     },
     bubble: {
-        maxWidth: "65%",
-        padding: "6px 10px 5px 12px",
+        position: "relative",
+        maxWidth: "100%",
+        padding: "6px 26px 5px 12px",
         borderRadius: "12px",
         fontSize: "14px",
         lineHeight: 1.4,
         display: "flex",
         flexDirection: "column",
     },
-    bubbleMine: { alignSelf: "flex-end", background: "#005c4b", color: "#e9edef" },
-    bubbleTheirs: { alignSelf: "flex-start", background: "#202c33", color: "#e9edef" },
+    bubbleMine: { background: "#005c4b", color: "#e9edef" },
+    bubbleTheirs: { background: "#202c33", color: "#e9edef" },
     sender: { fontSize: "12px", color: "#53bdeb", marginBottom: "2px", fontWeight: 600 },
+    statusPreview: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        background: "rgba(0,0,0,0.2)",
+        borderLeft: "3px solid #00a884",
+        borderRadius: "4px",
+        padding: "6px 8px",
+        marginBottom: 6,
+        overflow: "hidden",
+    },
+    previewImg: {
+        width: 40, height: 40,
+        borderRadius: 4,
+        objectFit: "cover",
+        flexShrink: 0,
+    },
+    previewBody: {
+        display: "flex", flexDirection: "column", gap: 2, minWidth: 0,
+    },
+    previewAuthor: {
+        fontSize: 11, color: "#00a884", fontWeight: 600,
+    },
+    previewText: {
+        fontSize: 12, color: "#a8c5bd",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+    },
     text: { whiteSpace: "pre-wrap", wordBreak: "break-word", textAlign: "left" },
     meta: {
         alignSelf: "flex-end",
@@ -938,6 +1369,150 @@ const styles = {
         whiteSpace: "nowrap",
     },
     time: { fontSize: "11px", color: "#9fc1b8" },
+
+    // hover chevron at the bubble's top corner
+    // hover chevron in the bubble's top-right gutter (never over text)
+    chevron: {
+        position: "absolute",
+        top: "3px",
+        right: "3px",
+        border: "none",
+        borderRadius: "50%",
+        width: "18px",
+        height: "18px",
+        lineHeight: "14px",
+        fontSize: "13px",
+        cursor: "pointer",
+        color: "#cdd6dd",
+        background: "rgba(0,0,0,0.28)",
+        padding: 0,
+    },
+    chevronMine: {},
+    chevronTheirs: {},
+
+    // the small React / Reply menu — drops DOWN from just under the chevron,
+    // pinned to the bubble's top-right corner (beside where you clicked).
+    actionMenu: {
+        position: "absolute",
+        top: "24px",
+        right: "2px",
+        zIndex: 20,
+        display: "flex",
+        flexDirection: "column",
+        minWidth: "120px",
+        background: "#233138",
+        border: "1px solid #2a3942",
+        borderRadius: "8px",
+        boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+        overflow: "hidden",
+    },
+    actionMenuItem: {
+        border: "none",
+        background: "transparent",
+        color: "#e9edef",
+        textAlign: "left",
+        padding: "8px 14px",
+        fontSize: "14px",
+        cursor: "pointer",
+    },
+
+    // reactions: pill row UNDER the bubble
+    pillRow: { display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "3px" },
+    pill: {
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "3px",
+        border: "1px solid #2a3942",
+        background: "#1d282f",
+        borderRadius: "11px",
+        padding: "1px 7px",
+        fontSize: "12px",
+        cursor: "pointer",
+        color: "#e9edef",
+        lineHeight: 1.6,
+    },
+    pillMine: { border: "1px solid #00a884", background: "#0c3a30" },
+    pillCount: { fontSize: "11px", color: "#c5cdd3" },
+
+    // reactions: the quick-pick popover — drops DOWN from the chevron corner
+    emojiPopover: {
+        position: "absolute",
+        top: "24px",
+        right: "2px",
+        zIndex: 20,
+        display: "flex",
+        gap: "2px",
+        padding: "4px 6px",
+        background: "#233138",
+        border: "1px solid #2a3942",
+        borderRadius: "22px",
+        boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+    },
+    emojiChoice: {
+        border: "none",
+        background: "transparent",
+        cursor: "pointer",
+        fontSize: "20px",
+        lineHeight: 1,
+        padding: "2px 4px",
+        borderRadius: "6px",
+    },
+
+    // reply: the quote block rendered INSIDE a reply bubble
+    quoteBlock: {
+        borderLeft: "3px solid #53bdeb",
+        background: "rgba(255,255,255,0.06)",
+        borderRadius: "4px",
+        padding: "4px 8px",
+        marginBottom: "4px",
+        cursor: "pointer",
+        maxWidth: "100%",
+    },
+    quoteAuthor: { fontSize: "12px", fontWeight: 600, color: "#53bdeb", marginBottom: "1px" },
+    quoteText: {
+        fontSize: "12.5px",
+        color: "#c5cdd3",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        maxWidth: "260px",
+    },
+    quoteDeleted: { fontStyle: "italic", color: "#8696a0" },
+
+    // reply: the preview bar above the composer
+    composerWrap: { borderTop: "1px solid #222d34", background: "#111b21" },
+    replyBar: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "8px",
+        padding: "8px 12px 0",
+    },
+    replyBarBody: {
+        flex: 1,
+        borderLeft: "3px solid #00a884",
+        background: "#1d282f",
+        borderRadius: "4px",
+        padding: "4px 8px",
+        overflow: "hidden",
+    },
+    replyBarAuthor: { fontSize: "12px", fontWeight: 600, color: "#00a884" },
+    replyBarText: {
+        fontSize: "12.5px",
+        color: "#c5cdd3",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+    },
+    replyBarClose: {
+        border: "none",
+        background: "transparent",
+        color: "#8696a0",
+        cursor: "pointer",
+        fontSize: "16px",
+        lineHeight: 1,
+        padding: "4px",
+    },
 
     // media styles
     mediaImage: {
@@ -957,8 +1532,6 @@ const styles = {
         display: "flex",
         gap: "8px",
         padding: "12px",
-        borderTop: "1px solid #222d34",
-        background: "#111b21",
     },
     attachButton: {
         padding: "10px 12px",

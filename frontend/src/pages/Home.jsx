@@ -48,6 +48,21 @@ export default function Home() {
                         <Chevron />
                     </button>
 
+                    <button className="pulse-row" onClick={() => navigate("/status")}>
+                        <span className="pulse-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+                                 strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+                                <circle cx="12" cy="12" r="9" strokeDasharray="4 3" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </span>
+                        <span className="pulse-row-text">
+                            <span className="pulse-row-title">Status</span>
+                            <span className="pulse-row-desc">Share and view status updates</span>
+                        </span>
+                        <Chevron />
+                    </button>
+
                     <button className="pulse-row" onClick={() => navigate("/contacts")}>
                         <span className="pulse-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
