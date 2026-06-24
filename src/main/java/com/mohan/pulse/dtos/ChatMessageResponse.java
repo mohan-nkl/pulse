@@ -1,5 +1,6 @@
 package com.mohan.pulse.dtos;
 
+import com.mohan.pulse.status.dtos.StatusPreviewDto;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
