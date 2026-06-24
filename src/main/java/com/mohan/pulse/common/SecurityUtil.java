@@ -1,6 +1,5 @@
-package com.mohan.pulse.security;
+package com.mohan.pulse.common;
 
-import com.mohan.pulse.exceptions.ApiException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;

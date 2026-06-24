@@ -3,7 +3,7 @@ package com.mohan.pulse.auth;
 import com.mohan.pulse.auth.dtos.AuthResponse;
 import com.mohan.pulse.auth.dtos.LoginRequest;
 import com.mohan.pulse.auth.dtos.SignupRequest;
-import com.mohan.pulse.exceptions.ApiException;
+import com.mohan.pulse.common.ApiException;
 import com.mohan.pulse.user.User;
 import com.mohan.pulse.user.UserRepository;
 import org.springframework.http.HttpStatus;

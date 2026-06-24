@@ -1,9 +1,9 @@
 package com.mohan.pulse.user;
 
-import com.mohan.pulse.dtos.ApiResponse;
+import com.mohan.pulse.common.ApiResponse;
 import com.mohan.pulse.user.dtos.UpdateProfileRequest;
 import com.mohan.pulse.user.dtos.UserProfileResponse;
-import com.mohan.pulse.security.SecurityUtil;
+import com.mohan.pulse.common.SecurityUtil;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

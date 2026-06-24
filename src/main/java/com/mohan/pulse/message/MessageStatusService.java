@@ -3,7 +3,7 @@ package com.mohan.pulse.message;
 import com.mohan.pulse.message.dtos.MessageInfoResponse;
 import com.mohan.pulse.message.dtos.MessageStatusUpdate;
 import com.mohan.pulse.message.dtos.RecipientStatusEntry;
-import com.mohan.pulse.exceptions.ApiException;
+import com.mohan.pulse.common.ApiException;
 import com.mohan.pulse.user.User;
 import com.mohan.pulse.user.UserRepository;
 import lombok.RequiredArgsConstructor;

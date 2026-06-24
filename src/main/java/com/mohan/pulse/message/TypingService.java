@@ -3,7 +3,7 @@ package com.mohan.pulse.message;
 import com.mohan.pulse.message.dtos.TypingEvent;
 import com.mohan.pulse.group.GroupMember;
 import com.mohan.pulse.group.GroupMemberRepository;
-import com.mohan.pulse.utils.ConversationUtil;
+import com.mohan.pulse.common.ConversationUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;

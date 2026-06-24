@@ -1,8 +1,8 @@
 package com.mohan.pulse.message;
 
-import com.mohan.pulse.dtos.ApiResponse;
+import com.mohan.pulse.common.ApiResponse;
 import com.mohan.pulse.message.dtos.MessageInfoResponse;
-import com.mohan.pulse.security.SecurityUtil;
+import com.mohan.pulse.common.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

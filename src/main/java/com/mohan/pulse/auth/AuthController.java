@@ -3,7 +3,7 @@ package com.mohan.pulse.auth;
 import com.mohan.pulse.auth.dtos.AuthResponse;
 import com.mohan.pulse.auth.dtos.LoginRequest;
 import com.mohan.pulse.auth.dtos.SignupRequest;
-import com.mohan.pulse.dtos.ApiResponse;
+import com.mohan.pulse.common.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
