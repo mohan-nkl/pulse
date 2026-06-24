@@ -16,7 +16,6 @@ public class ChatMessageResponse {
     private Instant createdAt;
 
     private String type;
-
     private String mediaUrl;
 
     private Long replyToId;
@@ -25,4 +24,7 @@ public class ChatMessageResponse {
     private String replyToContent;
     private String replyToType;
     private boolean replyToDeleted;
+
+    // Non-null only when this message is a status reply.
+    private StatusPreviewDto statusPreview;
 }

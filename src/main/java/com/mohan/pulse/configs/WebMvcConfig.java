@@ -11,20 +11,25 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Value("${app.upload.avatar-dir}")
     private String avatarDir;
 
-    // NEW: reads the media directory from application.properties
+    @Value("${app.upload.status-dir}")
+    private String statusDir;
+
     @Value("${app.upload.media-dir:uploads/media}")
     private String mediaDir;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
 
-        // Already existed — serves profile avatars at /avatars/**
+        // avatars
         registry.addResourceHandler("/avatars/**")
                 .addResourceLocations("file:" + avatarDir + "/");
 
-        // NEW — serves chat media files at /media/**
-        // So http://localhost:8080/media/abc.jpg loads the file from uploads/media/abc.jpg
+        // chat media
         registry.addResourceHandler("/media/**")
                 .addResourceLocations("file:" + mediaDir + "/");
+
+        // status media
+        registry.addResourceHandler("/status-media/**")
+                .addResourceLocations("file:" + statusDir + "/");
     }
 }

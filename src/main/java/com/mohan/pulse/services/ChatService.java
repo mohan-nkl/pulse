@@ -4,6 +4,7 @@ import com.mohan.pulse.dtos.ChatMessageResponse;
 import com.mohan.pulse.dtos.ReplySummary;
 import com.mohan.pulse.dtos.SendGroupMessageRequest;
 import com.mohan.pulse.dtos.SendMessageRequest;
+import com.mohan.pulse.dtos.StatusPreviewDto;
 import com.mohan.pulse.exceptions.ApiException;
 import com.mohan.pulse.models.ConversationType;
 import com.mohan.pulse.models.GroupMember;
@@ -12,6 +13,7 @@ import com.mohan.pulse.models.MessageType;
 import com.mohan.pulse.models.User;
 import com.mohan.pulse.repositories.GroupMemberRepository;
 import com.mohan.pulse.repositories.MessageRepository;
+import com.mohan.pulse.repositories.StatusRepository;
 import com.mohan.pulse.repositories.UserRepository;
 import com.mohan.pulse.utils.ConversationUtil;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ public class ChatService {
     private final GroupMemberRepository groupMemberRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final MessageStatusService messageStatusService;
+    private final StatusRepository statusRepository;
 
     @Transactional
     public ChatMessageResponse sendDirectMessage(Long senderId, SendMessageRequest request) {
@@ -60,10 +63,16 @@ public class ChatService {
         message.setMediaUrl(request.getMediaUrl());
         message.setReplyTo(resolveReplyTo(request.getReplyToId(), conversationId));
 
+        // Attach status reference if this is a status reply
+        if (request.getReplyToStatusId() != null) {
+            message.setReplyToStatusId(request.getReplyToStatusId());
+        }
+
         Message saved = messageRepository.save(message);
         messageStatusService.createRecipientStatuses(saved, List.of(receiver.getId()));
 
-        ChatMessageResponse response = toResponse(saved, sender.getId(), conversationId);
+        ChatMessageResponse response = toResponse(saved, sender.getId(), conversationId,
+                buildStatusPreview(request.getReplyToStatusId()));
 
         messagingTemplate.convertAndSendToUser(receiver.getId().toString(), USER_QUEUE, response);
         messagingTemplate.convertAndSendToUser(sender.getId().toString(),   USER_QUEUE, response);
@@ -106,7 +115,7 @@ public class ChatService {
 
         messageStatusService.createRecipientStatuses(saved, recipients);
 
-        ChatMessageResponse response = toResponse(saved, sender.getId(), conversationId);
+        ChatMessageResponse response = toResponse(saved, sender.getId(), conversationId, null);
 
         for (GroupMember member : members) {
             messagingTemplate.convertAndSendToUser(
@@ -150,7 +159,8 @@ public class ChatService {
         }
     }
 
-    private ChatMessageResponse toResponse(Message saved, Long senderId, String conversationId) {
+    private ChatMessageResponse toResponse(Message saved, Long senderId, String conversationId,
+                                           StatusPreviewDto statusPreview) {
         ReplySummary reply = ReplySummary.from(saved.getReplyTo());
         return new ChatMessageResponse(
                 saved.getId(),
@@ -165,12 +175,25 @@ public class ChatService {
                 reply.replyToSenderName(),
                 reply.replyToContent(),
                 reply.replyToType(),
-                reply.replyToDeleted()
+                reply.replyToDeleted(),
+                statusPreview
         );
     }
 
     private User findUser(Long id, String notFoundMessage) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, notFoundMessage));
+    }
+
+    // Looks up the status and returns a compact preview, or null if deleted/not found.
+    private StatusPreviewDto buildStatusPreview(Long statusId) {
+        if (statusId == null) return null;
+        return statusRepository.findById(statusId)
+                .map(s -> StatusPreviewDto.builder()
+                        .authorName(s.getAuthor().getName())
+                        .content(s.getContent())
+                        .mediaUrl(s.getMediaUrl())
+                        .build())
+                .orElse(null);
     }
 }
