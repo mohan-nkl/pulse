@@ -12,6 +12,7 @@ import com.mohan.pulse.models.Message;
 import com.mohan.pulse.models.MessageType;
 import com.mohan.pulse.models.User;
 import com.mohan.pulse.group.GroupMemberRepository;
+import com.mohan.pulse.notification.NotificationService;
 import com.mohan.pulse.repositories.MessageRepository;
 import com.mohan.pulse.repositories.StatusRepository;
 import com.mohan.pulse.repositories.UserRepository;
