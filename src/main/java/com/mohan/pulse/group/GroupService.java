@@ -22,6 +22,7 @@ public class GroupService {
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final UserRepository userRepository;
+    private final com.mohan.pulse.storage.StorageService storageService;
 
     @Transactional
     public GroupResponse createGroup(Long creatorId, CreateGroupRequest request) {
@@ -183,7 +184,7 @@ public class GroupService {
         return new GroupMemberResponse(
                 user.getId(),
                 user.getName(),
-                user.getAvatarUrl(),
+                storageService.presignedUrl(user.getAvatarUrl()),
                 member.getRole());
     }
 
@@ -191,7 +192,7 @@ public class GroupService {
         return new GroupResponse(
                 group.getId(),
                 group.getName(),
-                group.getAvatarUrl(),
+                storageService.presignedUrl(group.getAvatarUrl()),
                 myRole,
                 memberCount,
                 group.getCreatedAt());

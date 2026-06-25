@@ -29,6 +29,7 @@ public class MessageStatusService {
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final com.mohan.pulse.storage.StorageService storageService;
 
 
     @Transactional
@@ -112,7 +113,7 @@ public class MessageStatusService {
                 .map(row -> {
                     User u = row.getRecipient();
                     return new RecipientStatusEntry(
-                            u.getId(), u.getName(), u.getAvatarUrl(),
+                            u.getId(), u.getName(), storageService.presignedUrl(u.getAvatarUrl()),
                             row.getStatus(), row.getDeliveredAt(), row.getReadAt());
                 })
                 .toList();
