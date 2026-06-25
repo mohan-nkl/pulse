@@ -100,6 +100,14 @@ public class UserProfileService {
         return storageService.presignedUrl(avatarKey);
     }
 
+    public UserProfileResponse removeAvatar(Long userId) {
+        User user = findById(userId);
+        user.setAvatarUrl(null);
+
+        User savedUser = userRepository.save(user);
+        return toResponse(savedUser);
+    }
+
     private User findById(Long userId) {
         Optional<User> maybeUser = userRepository.findById(userId);
         if (maybeUser.isEmpty()) {

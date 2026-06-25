@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import HomeButton from "../components/HomeButton";
-import { getMyProfile, updateProfile, uploadAvatar } from "../api/profileApi";
+import { getMyProfile, updateProfile, uploadAvatar, removeAvatar } from "../api/profileApi";
 
 export default function Profile() {
 
@@ -66,6 +66,22 @@ export default function Profile() {
         }
     };
 
+    const handleRemoveAvatar = async () => {
+        setError("");
+        setSuccess("");
+        setUploading(true);
+        try {
+            const updated = await removeAvatar();
+            setProfile(updated);
+            updateUser({ avatarUrl: null });
+            setSuccess("Photo removed.");
+        } catch (err) {
+            setError(err.response?.data?.message || "Failed to remove photo.");
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const formatDate = (iso) => {
         if (!iso) return "—";
         return new Date(iso).toLocaleString();
@@ -97,6 +113,15 @@ export default function Profile() {
                     >
                         {uploading ? "Uploading..." : "Change photo"}
                     </button>
+                    {profile.avatarUrl && (
+                        <button
+                            style={styles.avatarRemoveBtn}
+                            onClick={handleRemoveAvatar}
+                            disabled={uploading}
+                        >
+                            Remove photo
+                        </button>
+                    )}
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -231,6 +256,15 @@ const styles = {
         background: "none",
         border: "none",
         color: "#38d39f",
+        cursor: "pointer",
+        padding: 0,
+        fontWeight: 500,
+    },
+    avatarRemoveBtn: {
+        fontSize: "13px",
+        background: "none",
+        border: "none",
+        color: "#f1707d",
         cursor: "pointer",
         padding: 0,
         fontWeight: 500,

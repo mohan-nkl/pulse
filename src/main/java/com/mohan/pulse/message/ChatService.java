@@ -75,12 +75,17 @@ public class ChatService {
 
         Message saved = messageRepository.save(message);
 
-        StatusPreviewDto statusPreview = buildStatusPreview(request.getReplyToStatusId());
-        ChatMessageResponse response = toResponse(saved, sender.getId(), conversationId, statusPreview);
-
         boolean blocked = blockService.isBlockedBetween(sender.getId(), receiver.getId());
         if (!blocked) {
             messageStatusService.createRecipientStatuses(saved, List.of(receiver.getId()));
+        }
+
+        StatusPreviewDto statusPreview = buildStatusPreview(request.getReplyToStatusId());
+        MessageStatus status = messageStatusService.currentStatus(saved.getId());
+        ChatMessageResponse response =
+                toResponse(saved, sender.getId(), conversationId, statusPreview, status.name());
+
+        if (!blocked) {
             sendTo(receiver.getId(), response);
 
             String notificationName = notificationNameFor(receiver.getId(), sender);
@@ -125,7 +130,9 @@ public class ChatService {
 
         messageStatusService.createRecipientStatuses(saved, recipientIds);
 
-        ChatMessageResponse response = toResponse(saved, sender.getId(), conversationId, null);
+        MessageStatus status = messageStatusService.currentStatus(saved.getId());
+        ChatMessageResponse response =
+                toResponse(saved, sender.getId(), conversationId, null, status.name());
 
         deliverGroupMessage(members, senderId, response);
 
@@ -212,7 +219,7 @@ public class ChatService {
     }
 
     private ChatMessageResponse toResponse(Message saved, Long senderId, String conversationId,
-                                           StatusPreviewDto statusPreview) {
+                                           StatusPreviewDto statusPreview, String status) {
         ReplySummary reply = ReplySummary.from(saved.getReplyTo());
         String mediaUrl = storageService.presignedUrl(saved.getMediaUrl());
 
@@ -222,6 +229,7 @@ public class ChatService {
                 .senderId(senderId)
                 .content(saved.getContent())
                 .createdAt(saved.getCreatedAt())
+                .status(status)
                 .type(saved.getType().name())
                 .mediaUrl(mediaUrl)
                 .replyToId(reply.getReplyToId())

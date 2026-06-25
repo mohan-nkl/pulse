@@ -16,6 +16,8 @@ public class ChatMessageResponse {
     private String content;
     private Instant createdAt;
 
+    private String status;
+
     private String type;
     private String mediaUrl;
 
