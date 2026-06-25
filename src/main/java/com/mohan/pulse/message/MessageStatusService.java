@@ -5,6 +5,7 @@ import com.mohan.pulse.message.dtos.MessageInfoResponse;
 import com.mohan.pulse.message.dtos.MessageStatusUpdate;
 import com.mohan.pulse.message.dtos.RecipientStatusEntry;
 import com.mohan.pulse.storage.StorageService;
+import com.mohan.pulse.user.PresenceService;
 import com.mohan.pulse.user.User;
 import com.mohan.pulse.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,18 +32,38 @@ public class MessageStatusService {
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final StorageService storageService;
+    private final PresenceService presenceService;
 
     @Transactional
     public void createRecipientStatuses(Message message, List<Long> recipientIds) {
+        Instant now = Instant.now();
+
         List<MessageRecipientStatus> rows = new ArrayList<>();
         for (Long recipientId : recipientIds) {
             MessageRecipientStatus row = new MessageRecipientStatus();
             row.setMessage(message);
             row.setRecipient(userRepository.getReferenceById(recipientId));
-            row.setStatus(MessageStatus.SENT);
+
+            boolean recipientOnline = presenceService.isOnline(recipientId);
+            if (recipientOnline) {
+                row.setStatus(MessageStatus.DELIVERED);
+                row.setDeliveredAt(now);
+            } else {
+                row.setStatus(MessageStatus.SENT);
+            }
             rows.add(row);
         }
         statusRepository.saveAll(rows);
+    }
+
+    @Transactional(readOnly = true)
+    public MessageStatus currentStatus(Long messageId) {
+        List<MessageRecipientStatus> rows = statusRepository.findByMessage_Id(messageId);
+
+        int total = rows.size();
+        int delivered = countAtLeastDelivered(rows);
+        int read = countRead(rows);
+        return aggregate(total, delivered, read);
     }
 
     @Transactional

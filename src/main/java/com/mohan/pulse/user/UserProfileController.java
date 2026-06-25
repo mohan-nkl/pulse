@@ -37,6 +37,12 @@ public class UserProfileController {
         return ResponseEntity.ok(ApiResponse.ok("Avatar updated.", userProfileService.uploadAvatar(userId, file)));
     }
 
+    @DeleteMapping("/profile/avatar")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> removeAvatar() {
+        Long userId = SecurityUtil.currentUserId();
+        return ResponseEntity.ok(ApiResponse.ok("Photo removed.", userProfileService.removeAvatar(userId)));
+    }
+
     @GetMapping("/users/{userId}/profile")
     public ResponseEntity<ApiResponse<UserProfileResponse>> getUserProfile(
             @PathVariable Long userId) {
