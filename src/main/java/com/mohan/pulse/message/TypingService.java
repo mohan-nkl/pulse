@@ -18,6 +18,7 @@ public class TypingService {
 
     private final GroupMemberRepository groupMemberRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final com.mohan.pulse.block.BlockService blockService;
 
     public void handleTyping(Long senderId, String conversationId, boolean typing) {
         if (conversationId == null) {
@@ -43,6 +44,11 @@ public class TypingService {
 
         long recipientId = (senderId == a) ? b : a;
 
+        // No typing indicator across a block (either direction).
+        if (blockService.isBlockedBetween(senderId, recipientId)) {
+            return;
+        }
+
         send(recipientId, new TypingEvent(conversationId, senderId, typing));
     }
 
@@ -59,7 +65,8 @@ public class TypingService {
         TypingEvent event = new TypingEvent(conversationId, senderId, typing);
         for (GroupMember member : members) {
             Long memberId = member.getUser().getId();
-            if (!memberId.equals(senderId)) {
+            if (!memberId.equals(senderId)
+                    && !blockService.isBlockedBetween(senderId, memberId)) {
                 send(memberId, event);
             }
         }

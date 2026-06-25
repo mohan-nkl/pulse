@@ -35,6 +35,7 @@ public class ChatService {
     private final StatusRepository statusRepository;
     private final NotificationService notificationService;
     private final com.mohan.pulse.storage.StorageService storageService;
+    private final com.mohan.pulse.block.BlockService blockService;
 
     @Transactional
     public ChatMessageResponse sendDirectMessage(Long senderId, SendMessageRequest request) {
@@ -68,15 +69,25 @@ public class ChatService {
         }
 
         Message saved = messageRepository.save(message);
-        messageStatusService.createRecipientStatuses(saved, List.of(receiver.getId()));
+
+        // Block enforcement (WhatsApp behavior): if either side has blocked the
+        // other, the message is saved so the SENDER sees it (single tick), but it
+        // is NOT delivered — no recipient-status row (so it can never go
+        // delivered/read), no WebSocket push to the receiver, no notification.
+        boolean blocked = blockService.isBlockedBetween(sender.getId(), receiver.getId());
 
         ChatMessageResponse response = toResponse(saved, sender.getId(), conversationId,
                 buildStatusPreview(request.getReplyToStatusId()));
 
-        messagingTemplate.convertAndSendToUser(receiver.getId().toString(), USER_QUEUE, response);
-        messagingTemplate.convertAndSendToUser(sender.getId().toString(),   USER_QUEUE, response);
+        if (!blocked) {
+            messageStatusService.createRecipientStatuses(saved, List.of(receiver.getId()));
+            messagingTemplate.convertAndSendToUser(receiver.getId().toString(), USER_QUEUE, response);
+            notificationService.sendNotification(receiver.getId(), conversationId, sender.getName(), request.getContent());
+        }
 
-        notificationService.sendNotification(receiver.getId(), conversationId, sender.getName(), request.getContent());
+        // Always echo to the sender so they see their own message (single tick
+        // when blocked, since no recipient status will ever advance it).
+        messagingTemplate.convertAndSendToUser(sender.getId().toString(), USER_QUEUE, response);
 
         return response;
     }
@@ -119,8 +130,14 @@ public class ChatService {
         ChatMessageResponse response = toResponse(saved, sender.getId(), conversationId, null);
 
         for (GroupMember member : members) {
+            Long memberId = member.getUser().getId();
+            // Don't push live to members who have blocked the sender — they won't
+            // see this message (consistent with history filtering).
+            if (!memberId.equals(senderId) && blockService.hasBlocked(memberId, senderId)) {
+                continue;
+            }
             messagingTemplate.convertAndSendToUser(
-                    member.getUser().getId().toString(), USER_QUEUE, response);
+                    memberId.toString(), USER_QUEUE, response);
         }
 
         for (Long recipientId : recipients) {

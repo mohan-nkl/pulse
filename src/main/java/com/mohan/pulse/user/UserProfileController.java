@@ -41,7 +41,9 @@ public class UserProfileController {
     @GetMapping("/users/{userId}/profile")
     public ResponseEntity<ApiResponse<UserProfileResponse>> getUserProfile(
             @PathVariable Long userId) {
-        return ResponseEntity.ok(ApiResponse.ok(userProfileService.getUserProfile(userId)));
+        Long viewerId = SecurityUtil.currentUserId();
+        return ResponseEntity.ok(ApiResponse.ok(
+                userProfileService.getUserProfileFor(viewerId, userId)));
     }
 
     @PostMapping("/auth/logout")
