@@ -1,20 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../context/NotificationContext";
-import NotificationToast from "../components/NotificationToast";
+import { useSocket } from "../context/SocketContext";
 import HomeButton from "../components/HomeButton";
 import client from "../api/client";
 import { uploadMedia, getMessageType } from "../api/mediaApi";
 import { reactToMessage, unreactToMessage } from "../api/reactionApi";
 import { deleteForMe, deleteForEveryone, editMessage } from "../api/messageActionApi";
 import {
-    connectWebSocket,
     sendMessage,
     sendGroupMessage,
     sendDelivered,
     sendRead,
     sendTyping,
-    disconnectWebSocket,
 } from "../services/WebSocket.js";
 import { listGroups, getGroupHistory, getGroupMembers } from "../api/groupApi";
 import NewGroupModal from "../components/NewGroupModal";
@@ -268,11 +266,11 @@ function ReactionPills({ reactions, currentUserId, onToggle }) {
 export default function ChatPage() {
     const { user } = useAuth();
     const currentUserId = user?.userId;
-    const { handleNotification, clearConversation, unreadPerConversation } = useNotification();
+    const { clearConversation, unreadPerConversation, refreshUnreadCounts } = useNotification();
+    const { presence, setPresence, addListener, setOpenConversation } = useSocket();
 
     const [contacts, setContacts] = useState([]);
     const [groups, setGroups] = useState([]);
-    const [activeToast, setActiveToast] = useState(null);
 
     // The open conversation: either { type: "dm", userId, name }
     // or a group object { type: "group", id, name, myRole, ... }. null = nothing open.
@@ -290,7 +288,7 @@ export default function ChatPage() {
     const [memberNames, setMemberNames] = useState({});
 
     // userId -> { userId, online, lastSeen } presence for contacts / open chat.
-    const [presence, setPresence] = useState({});
+    // userId -> { userId, online, lastSeen } presence comes from SocketContext now.
 
     // conversationId -> { [userId]: true } for people currently typing in that
     // chat. A per-user timer (in a ref) auto-clears the entry if no "stopped" arrives.
@@ -328,10 +326,6 @@ export default function ChatPage() {
     // mount) never reads a stale/undefined value.
     const currentUserIdRef = useRef(null);
 
-    // Connect exactly once, even under StrictMode's double-mount (which would
-    // otherwise open two sockets and double every notification).
-    const hasConnectedRef = useRef(false);
-
     // Whether THIS browser window is focused right now. We only send read
     // receipts when focused — having the chat open in a background window
     // (e.g. two windows side by side while testing) must NOT mark messages read.
@@ -361,15 +355,10 @@ export default function ChatPage() {
         currentUserIdRef.current = currentUserId;
     }, [currentUserId]);
 
-    // Ask for browser notification permission once after login.
+    // Persist the selected chat so a reload restores it. Also tell the socket
+    // provider which conversation is open, so it can suppress the toast for it.
     useEffect(() => {
-        if (currentUserId && "Notification" in window && Notification.permission === "default") {
-            Notification.requestPermission();
-        }
-    }, [currentUserId]);
-
-    // Persist the selected chat so a reload restores it.
-    useEffect(() => {
+        setOpenConversation(openConversationIdRef.current);
         if (!selected) {
             sessionStorage.removeItem("pulse_selected");
         } else if (selected.type === "dm") {
@@ -377,7 +366,7 @@ export default function ChatPage() {
         } else if (selected.type === "group") {
             sessionStorage.setItem("pulse_selected", JSON.stringify({ type: "group", id: selected.id }));
         }
-    }, [selected]);
+    }, [selected, setOpenConversation]);
 
     // Re-render every minute so "last seen ..." stays current (e.g. rolls over
     // to "yesterday") even if no new presence update arrives.
@@ -408,11 +397,14 @@ export default function ChatPage() {
         };
         init();
 
-        if (hasConnectedRef.current) return;
-        hasConnectedRef.current = true;
+        // Reconcile unread badges with the backend whenever the chat page mounts
+        // (e.g. navigating here from Home), so the count is correct immediately.
+        refreshUnreadCounts();
 
-        connectWebSocket(
-            (message) => {
+        // The socket itself lives in SocketContext (app-wide). Here we just
+        // register the chat-page-specific listeners and clean them up on unmount.
+        const unsubscribers = [
+            addListener("message", (message) => {
                 const mine = message.senderId === currentUserIdRef.current;
 
                 // My OWN echoed message: just show it, never acknowledge it.
@@ -431,21 +423,26 @@ export default function ChatPage() {
                 if (message.conversationId === openConversationIdRef.current) {
                     shouldScrollToBottom.current = true;
                     setMessages((previous) => [...previous, message]);
-                    if (windowFocusedRef.current) {
-                        // Focused: read covers delivered in one step (backend
-                        // markRead also matches already-delivered rows).
+                    // Only mark READ if the user is genuinely viewing this chat:
+                    // the window is visible AND focused. Otherwise just delivered,
+                    // and defer the read until they actually come back to it.
+                    const trulyViewing =
+                        typeof document !== "undefined" &&
+                        document.visibilityState === "visible" &&
+                        windowFocusedRef.current;
+                    if (trulyViewing) {
                         sendRead(message.conversationId);
+                        clearConversation(message.conversationId); // keep badge at 0 while viewing
                     } else {
-                        // Open but not focused: mark delivered now, defer the
-                        // read until the window regains focus.
                         sendDelivered(message.conversationId);
                         pendingReadRef.current = message.conversationId;
                     }
                 } else {
                     sendDelivered(message.conversationId); // arrived, chat not open
                 }
-            },
-            (update) => {
+            }),
+
+            addListener("status", (update) => {
                 // A tick advanced on one of MY messages — update just that bubble.
                 setMessages((previous) =>
                     previous.map((m) =>
@@ -460,21 +457,17 @@ export default function ChatPage() {
                             : m
                     )
                 );
-            },
-            (p) => {
-                // Someone went online/offline — update just that user's presence.
-                setPresence((previous) => ({ ...previous, [p.userId]: p }));
-            },
-            (event) => {
-                // Someone started/stopped typing in a chat I'm part of.
+            }),
+
+            addListener("typing", (event) => {
                 if (event.typing) {
                     markTyping(event.conversationId, event.userId);
                 } else {
                     clearTyping(event.conversationId, event.userId);
                 }
-            },
-            (update) => {
-                // A message's reactions changed — replace that message's full list.
+            }),
+
+            addListener("reaction", (update) => {
                 setMessages((previous) =>
                     previous.map((m) =>
                         m.id === update.messageId
@@ -482,22 +475,9 @@ export default function ChatPage() {
                             : m
                     )
                 );
-            },
-            (notification) => {
-                // New-message notification. If I'm already in this conversation, ignore.
-                if (notification.conversationId === openConversationIdRef.current) return;
+            }),
 
-                handleNotification(notification);
-                setActiveToast(notification);
-                if (document.hidden && "Notification" in window && Notification.permission === "granted") {
-                    new Notification(notification.senderName, {
-                        body: notification.preview,
-                        icon: "/favicon.svg",
-                    });
-                }
-            },
-            (event) => {
-                // A message was deleted for everyone — flip that bubble to "deleted".
+            addListener("deleted", (event) => {
                 setMessages((previous) =>
                     previous.map((m) =>
                         m.id === event.messageId
@@ -505,9 +485,9 @@ export default function ChatPage() {
                             : m
                     )
                 );
-            },
-            (event) => {
-                // A message was edited — update its text in place and mark edited.
+            }),
+
+            addListener("edited", (event) => {
                 setMessages((previous) =>
                     previous.map((m) =>
                         m.id === event.messageId
@@ -515,10 +495,16 @@ export default function ChatPage() {
                             : m
                     )
                 );
-            }
-        );
+            }),
+        ];
 
         return () => {
+            // Remove our listeners (the socket itself stays alive in the provider).
+            unsubscribers.forEach((off) => off());
+            // Leaving the chat page: tell the provider no conversation is open,
+            // so it resumes sending delivery receipts and showing toasts for
+            // incoming messages on other pages.
+            setOpenConversation(null);
             // Clear any pending typing timers so they don't fire after unmount.
             if (typingIdleTimerRef.current) clearTimeout(typingIdleTimerRef.current);
             Object.values(typingExpiryTimersRef.current).forEach(clearTimeout);
@@ -721,7 +707,9 @@ export default function ChatPage() {
 
         // Opening a chat means I've read everything in it.
         markReadIfFocused(convId);
-        clearConversation(convId); // zero its unread badge
+        clearConversation(convId); // zero its unread badge instantly
+        // Reconcile to the backend truth shortly after (read receipts have flushed).
+        setTimeout(() => refreshUnreadCounts(), 600);
 
         // Refresh this person's presence for the header.
         try {
@@ -767,7 +755,9 @@ export default function ChatPage() {
 
         // Opening the group means I've read everything in it.
         markReadIfFocused(convId);
-        clearConversation(convId); // zero its unread badge
+        clearConversation(convId); // zero its unread badge instantly
+        // Reconcile to the backend truth shortly after (read receipts have flushed).
+        setTimeout(() => refreshUnreadCounts(), 600);
     };
 
     // ---- replies ----
@@ -1428,23 +1418,8 @@ export default function ChatPage() {
 
             <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
 
-            <NotificationToast
-                notification={activeToast}
-                onClose={() => setActiveToast(null)}
-                onClick={(conversationId) => {
-                    if (conversationId?.startsWith("dm:")) {
-                        const parts = conversationId.split(":");
-                        const otherId = Number(parts[1]) === currentUserId ? Number(parts[2]) : Number(parts[1]);
-                        const contact = contacts.find((c) => c.userId === otherId);
-                        if (contact) openDirect(contact);
-                    } else if (conversationId?.startsWith("group:")) {
-                        const groupId = Number(conversationId.split(":")[1]);
-                        const group = groups.find((g) => g.id === groupId);
-                        if (group) openGroup(group);
-                    }
-                    setActiveToast(null);
-                }}
-            />
+            {/* Toast is now rendered app-wide by SocketProvider */}
+
         </div>
     );
 }

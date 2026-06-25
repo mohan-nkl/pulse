@@ -4,6 +4,7 @@ import com.mohan.pulse.auth.WebSocketAuthInterceptor;
 import com.mohan.pulse.auth.WebSocketHandshakeHandler;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
@@ -38,7 +39,17 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
 
-        registry.enableSimpleBroker("/topic", "/queue");
+        // Heartbeats (server<->client every 10s) keep the connection alive.
+        // The simple broker only emits heartbeats when given a scheduler, so
+        // without this the socket silently dies after ~60s of inactivity.
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("ws-heartbeat-");
+        scheduler.initialize();
+
+        registry.enableSimpleBroker("/topic", "/queue")
+                .setHeartbeatValue(new long[] { 10000, 10000 })
+                .setTaskScheduler(scheduler);
 
         registry.setApplicationDestinationPrefixes("/app");
 

@@ -11,6 +11,10 @@ import lombok.Getter;
 @AllArgsConstructor
 public class NotificationDto {
 
+    // "MESSAGE" for a new message, "REACTION" for a reaction on your message.
+    // Lets the frontend toast both but only count messages as unread.
+    private String type;
+
     // Which conversation this message came from (e.g. "dm:1:2" or "group:5")
     private String conversationId;
 

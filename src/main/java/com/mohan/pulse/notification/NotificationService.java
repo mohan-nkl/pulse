@@ -77,6 +77,7 @@ public class NotificationService {
 
         // Build the notification object
         NotificationDto notification = new NotificationDto(
+                "MESSAGE",
                 conversationId,
                 senderName,
                 preview,
@@ -86,6 +87,33 @@ public class NotificationService {
 
         // Send it to ONLY the recipient via WebSocket
         // Spring will route it to "/user/{recipientId}/queue/notifications"
+        messagingTemplate.convertAndSendToUser(
+                recipientId.toString(),
+                NOTIFICATION_QUEUE,
+                notification
+        );
+    }
+
+    /*
+     * Call this when someone REACTS to a user's message.
+     * Sends a toast notification but does NOT touch the unread counter —
+     * a reaction is not an unread message.
+     */
+    public void sendReactionNotification(Long recipientId,
+                                         String conversationId,
+                                         String reactorName,
+                                         String emoji) {
+        String preview = "Reacted " + (emoji == null ? "" : emoji) + " to your message";
+
+        NotificationDto notification = new NotificationDto(
+                "REACTION",
+                conversationId,
+                reactorName,
+                preview,
+                0,   // reactions don't carry unread counts
+                0
+        );
+
         messagingTemplate.convertAndSendToUser(
                 recipientId.toString(),
                 NOTIFICATION_QUEUE,
