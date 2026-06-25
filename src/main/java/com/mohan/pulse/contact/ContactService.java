@@ -19,6 +19,7 @@ public class ContactService {
     private final ContactRepository contactRepository;
     private final UserRepository userRepository;
     private final com.mohan.pulse.storage.StorageService storageService;
+    private final com.mohan.pulse.block.BlockService blockService;
 
     public List<ContactResponse> listContacts(Long ownerId) {
         return contactRepository.findByOwner_Id(ownerId)
@@ -110,13 +111,15 @@ public class ContactService {
 
     private ContactResponse toResponse(Contact c) {
         User u = c.getContact();
+        // Hide avatar + last-seen if a block exists in either direction.
+        boolean hidden = blockService.isBlockedBetween(u.getId(), c.getOwner().getId());
         return ContactResponse.builder()
                 .id(c.getId())
                 .contactId(u.getId())
                 .name(u.getName())
                 .alias(c.getAlias())
-                .avatarUrl(storageService.presignedUrl(u.getAvatarUrl()))
-                .lastSeen(u.getLastSeen())
+                .avatarUrl(hidden ? null : storageService.presignedUrl(u.getAvatarUrl()))
+                .lastSeen(hidden ? null : u.getLastSeen())
                 .addedAt(c.getAddedAt())
                 .build();
     }
