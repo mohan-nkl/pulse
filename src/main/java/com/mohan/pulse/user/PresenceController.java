@@ -1,6 +1,7 @@
 package com.mohan.pulse.user;
 
 import com.mohan.pulse.common.ApiResponse;
+import com.mohan.pulse.common.SecurityUtil;
 import com.mohan.pulse.user.dtos.PresenceUpdate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,11 +22,13 @@ public class PresenceController {
 
     @GetMapping("/{userId}")
     public ApiResponse<PresenceUpdate> getPresence(@PathVariable Long userId) {
-        return ApiResponse.ok(presenceService.getPresence(userId));
+        Long viewerId = SecurityUtil.currentUserId();
+        return ApiResponse.ok(presenceService.getPresenceFor(viewerId, userId));
     }
 
     @PostMapping
     public ApiResponse<List<PresenceUpdate>> getPresenceFor(@RequestBody List<Long> userIds) {
-        return ApiResponse.ok(presenceService.getPresenceFor(userIds));
+        Long viewerId = SecurityUtil.currentUserId();
+        return ApiResponse.ok(presenceService.getPresenceForViewer(viewerId, userIds));
     }
 }
