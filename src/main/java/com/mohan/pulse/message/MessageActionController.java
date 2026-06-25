@@ -18,7 +18,6 @@ public class MessageActionController {
 
     private final MessageActionService messageActionService;
 
-    // Delete for me: hides the message for the current user only.
     @DeleteMapping("/{messageId}/for-me")
     public ApiResponse<Void> deleteForMe(@PathVariable Long messageId) {
         Long currentUserId = SecurityUtil.currentUserId();
@@ -26,7 +25,6 @@ public class MessageActionController {
         return ApiResponse.ok(null);
     }
 
-    // Delete for everyone: sender only, within the time window.
     @DeleteMapping("/{messageId}/for-everyone")
     public ApiResponse<Void> deleteForEveryone(@PathVariable Long messageId) {
         Long currentUserId = SecurityUtil.currentUserId();
@@ -34,7 +32,6 @@ public class MessageActionController {
         return ApiResponse.ok(null);
     }
 
-    // Edit: sender only, own text message, within 30 minutes.
     @PutMapping("/{messageId}")
     public ApiResponse<Void> editMessage(@PathVariable Long messageId,
                                          @RequestBody EditMessageRequest request) {

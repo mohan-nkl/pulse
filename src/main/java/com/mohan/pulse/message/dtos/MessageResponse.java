@@ -3,14 +3,14 @@ package com.mohan.pulse.message.dtos;
 import com.mohan.pulse.message.MessageStatus;
 import com.mohan.pulse.reaction.dtos.ReactionEntry;
 import com.mohan.pulse.status.dtos.StatusPreviewDto;
-import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Instant;
 import java.util.List;
 
 @Getter
-@AllArgsConstructor
+@Builder
 public class MessageResponse {
 
     private Long id;
@@ -36,6 +36,6 @@ public class MessageResponse {
 
     private StatusPreviewDto statusPreview;
 
-    private boolean edited;    // sender edited the text
-    private boolean deleted;   // deleted for everyone -> render "message deleted"
+    private boolean edited;
+    private boolean deleted;
 }

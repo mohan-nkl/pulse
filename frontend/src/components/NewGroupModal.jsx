@@ -3,7 +3,7 @@ import { createGroup } from "../api/groupApi";
 
 export default function NewGroupModal({ contacts, onClose, onCreated }) {
     const [name, setName] = useState("");
-    const [selectedIds, setSelectedIds] = useState([]); // chosen contact userIds
+    const [selectedIds, setSelectedIds] = useState([]);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
 
