@@ -1,24 +1,27 @@
 package com.mohan.pulse.reaction;
 
 import com.mohan.pulse.common.ApiException;
+import com.mohan.pulse.common.ConversationUtil;
 import com.mohan.pulse.group.GroupMember;
-import com.mohan.pulse.message.Message;
-import com.mohan.pulse.user.User;
 import com.mohan.pulse.group.GroupMemberRepository;
+import com.mohan.pulse.message.Message;
+import com.mohan.pulse.message.MessageRepository;
+import com.mohan.pulse.notification.NotificationService;
 import com.mohan.pulse.reaction.dtos.ReactionEntry;
 import com.mohan.pulse.reaction.dtos.ReactionUpdate;
-import com.mohan.pulse.message.MessageRepository;
+import com.mohan.pulse.user.User;
 import com.mohan.pulse.user.UserRepository;
-import com.mohan.pulse.common.ConversationUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -31,52 +34,36 @@ public class ReactionService {
     private final UserRepository userRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final SimpMessagingTemplate messagingTemplate;
-    private final com.mohan.pulse.notification.NotificationService notificationService;
+    private final NotificationService notificationService;
 
     @Transactional
     public void react(Long userId, Long messageId, String emoji) {
-        if (emoji == null || emoji.isBlank()) {
+        boolean emojiMissing = (emoji == null || emoji.isBlank());
+        if (emojiMissing) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Emoji is required.");
         }
 
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Message not found."));
-
+        Message message = findMessageOrThrow(messageId);
         ensureMember(userId, message.getConversationId());
 
-        Reaction reaction = reactionRepository
-                .findByMessage_IdAndUser_Id(messageId, userId)
-                .orElseGet(() -> {
-                    Reaction r = new Reaction();
-                    r.setMessage(message);
-                    r.setUser(userRepository.getReferenceById(userId));
-                    return r;
-                });
+        Reaction reaction = findOrCreateReaction(message, userId);
         reaction.setEmoji(emoji);
         reactionRepository.save(reaction);
 
         broadcast(message);
-
-        // Notify the message's sender that someone reacted (unless they reacted
-        // to their own message). Toast only — does not affect unread counts.
-        Long authorId = message.getSender().getId();
-        if (!authorId.equals(userId)) {
-            User reactor = userRepository.findById(userId).orElse(null);
-            String reactorName = reactor != null ? reactor.getName() : "Someone";
-            notificationService.sendReactionNotification(
-                    authorId, message.getConversationId(), reactorName, emoji);
-        }
+        notifyAuthorIfNeeded(message, userId, emoji);
     }
 
     @Transactional
     public void unreact(Long userId, Long messageId) {
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Message not found."));
-
+        Message message = findMessageOrThrow(messageId);
         ensureMember(userId, message.getConversationId());
 
-        reactionRepository.findByMessage_IdAndUser_Id(messageId, userId)
-                .ifPresent(reactionRepository::delete);
+        Optional<Reaction> existingReaction =
+                reactionRepository.findByMessage_IdAndUser_Id(messageId, userId);
+        if (existingReaction.isPresent()) {
+            reactionRepository.delete(existingReaction.get());
+        }
 
         broadcast(message);
     }
@@ -86,21 +73,71 @@ public class ReactionService {
         if (messageIds.isEmpty()) {
             return Map.of();
         }
-        return reactionRepository.findByMessage_IdIn(messageIds).stream()
-                .collect(Collectors.groupingBy(
-                        r -> r.getMessage().getId(),
-                        Collectors.mapping(this::toEntry, Collectors.toList())));
+
+        List<Reaction> reactions = reactionRepository.findByMessage_IdIn(messageIds);
+
+        Map<Long, List<ReactionEntry>> entriesByMessageId = new HashMap<>();
+        for (Reaction reaction : reactions) {
+            Long messageId = reaction.getMessage().getId();
+            ReactionEntry entry = toEntry(reaction);
+
+            List<ReactionEntry> entriesForMessage = entriesByMessageId.get(messageId);
+            if (entriesForMessage == null) {
+                entriesForMessage = new ArrayList<>();
+                entriesByMessageId.put(messageId, entriesForMessage);
+            }
+            entriesForMessage.add(entry);
+        }
+        return entriesByMessageId;
+    }
+
+    private Reaction findOrCreateReaction(Message message, Long userId) {
+        Optional<Reaction> existingReaction =
+                reactionRepository.findByMessage_IdAndUser_Id(message.getId(), userId);
+        if (existingReaction.isPresent()) {
+            return existingReaction.get();
+        }
+
+        Reaction reaction = new Reaction();
+        reaction.setMessage(message);
+        reaction.setUser(userRepository.getReferenceById(userId));
+        return reaction;
+    }
+
+    private void notifyAuthorIfNeeded(Message message, Long reactorId, String emoji) {
+        Long authorId = message.getSender().getId();
+
+        boolean reactingToOwnMessage = authorId.equals(reactorId);
+        if (reactingToOwnMessage) {
+            return;
+        }
+
+        String reactorName = reactorNameOf(reactorId);
+        notificationService.sendReactionNotification(
+                authorId, message.getConversationId(), reactorName, emoji);
+    }
+
+    private String reactorNameOf(Long reactorId) {
+        Optional<User> maybeReactor = userRepository.findById(reactorId);
+        if (maybeReactor.isEmpty()) {
+            return "Someone";
+        }
+        return maybeReactor.get().getName();
     }
 
     private List<ReactionEntry> currentReactions(Long messageId) {
-        return reactionRepository.findByMessage_Id(messageId).stream()
-                .map(this::toEntry)
-                .toList();
+        List<Reaction> reactions = reactionRepository.findByMessage_Id(messageId);
+
+        List<ReactionEntry> entries = new ArrayList<>();
+        for (Reaction reaction : reactions) {
+            entries.add(toEntry(reaction));
+        }
+        return entries;
     }
 
-    private ReactionEntry toEntry(Reaction r) {
-        User u = r.getUser();
-        return new ReactionEntry(u.getId(), u.getName(), r.getEmoji());
+    private ReactionEntry toEntry(Reaction reaction) {
+        User user = reaction.getUser();
+        return new ReactionEntry(user.getId(), user.getName(), reaction.getEmoji());
     }
 
     private void broadcast(Message message) {
@@ -127,17 +164,27 @@ public class ReactionService {
 
     private void ensureMember(Long userId, String conversationId) {
         if (ConversationUtil.isDirect(conversationId)) {
-            long[] p = ConversationUtil.dmParticipants(conversationId);
-            if (userId != p[0] && userId != p[1]) {
+            long[] participants = ConversationUtil.dmParticipants(conversationId);
+            boolean isParticipant = (userId == participants[0] || userId == participants[1]);
+            if (!isParticipant) {
                 throw new ApiException(HttpStatus.FORBIDDEN,
                         "You are not part of this conversation.");
             }
         } else if (ConversationUtil.isGroup(conversationId)) {
             Long groupId = ConversationUtil.groupIdFrom(conversationId);
-            if (!groupMemberRepository.existsByGroupIdAndUserId(groupId, userId)) {
+            boolean isMember = groupMemberRepository.existsByGroupIdAndUserId(groupId, userId);
+            if (!isMember) {
                 throw new ApiException(HttpStatus.FORBIDDEN,
                         "You are not a member of this group.");
             }
         }
+    }
+
+    private Message findMessageOrThrow(Long messageId) {
+        Optional<Message> maybeMessage = messageRepository.findById(messageId);
+        if (maybeMessage.isEmpty()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Message not found.");
+        }
+        return maybeMessage.get();
     }
 }

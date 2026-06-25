@@ -13,26 +13,19 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
 
     boolean existsByBlocker_IdAndBlocked_Id(Long blockerId, Long blockedId);
 
-    // Everyone the given user has blocked (for "blocked list" + group filtering).
     List<Block> findByBlocker_Id(Long blockerId);
 
-    // The IDs the given user has blocked — handy for filtering group messages.
     @Query("SELECT b.blocked.id FROM Block b WHERE b.blocker.id = :blockerId")
     List<Long> findBlockedIdsByBlocker(@Param("blockerId") Long blockerId);
 
-    // The IDs of users who have blocked the given user (the "blocked-by" set).
     @Query("SELECT b.blocker.id FROM Block b WHERE b.blocked.id = :blockedId")
     List<Long> findBlockerIdsByBlocked(@Param("blockedId") Long blockedId);
 
-    /**
-     * True if there is a block in EITHER direction between two users.
-     * Used to decide whether a DM should be delivered: if A blocked B OR B
-     * blocked A, the message must not reach the other side.
-     */
     @Query("""
         SELECT COUNT(b) > 0 FROM Block b
-        WHERE (b.blocker.id = :a AND b.blocked.id = :b)
-           OR (b.blocker.id = :b AND b.blocked.id = :a)
+        WHERE (b.blocker.id = :firstUserId AND b.blocked.id = :secondUserId)
+           OR (b.blocker.id = :secondUserId AND b.blocked.id = :firstUserId)
         """)
-    boolean existsBlockBetween(@Param("a") Long a, @Param("b") Long b);
+    boolean existsBlockBetween(@Param("firstUserId") Long firstUserId,
+                               @Param("secondUserId") Long secondUserId);
 }

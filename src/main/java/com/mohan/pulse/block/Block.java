@@ -10,13 +10,6 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
 
-/**
- * A directional block: {@code blocker} has blocked {@code blocked}.
- *
- * Kept in its own table (not on Contact) because a block is independent of the
- * contact list — you can block someone who isn't a contact, and the block must
- * persist regardless of contact changes.
- */
 @Getter
 @Setter
 @NoArgsConstructor

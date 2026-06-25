@@ -39,9 +39,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
 
-        // Heartbeats (server<->client every 10s) keep the connection alive.
-        // The simple broker only emits heartbeats when given a scheduler, so
-        // without this the socket silently dies after ~60s of inactivity.
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(1);
         scheduler.setThreadNamePrefix("ws-heartbeat-");

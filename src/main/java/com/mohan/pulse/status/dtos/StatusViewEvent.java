@@ -5,8 +5,6 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public class StatusPreviewDto {
-    private String authorName;
-    private String content;
-    private String mediaUrl;
+public class StatusViewEvent {
+    private Long statusId;
 }

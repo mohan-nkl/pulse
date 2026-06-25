@@ -20,7 +20,13 @@ public class WebSocketHandshakeHandler extends DefaultHandshakeHandler {
             return null;
         }
 
-        String name = userId.toString();
-        return () -> name;
+        String userIdAsName = userId.toString();
+
+        return new Principal() {
+            @Override
+            public String getName() {
+                return userIdAsName;
+            }
+        };
     }
 }

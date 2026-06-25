@@ -10,7 +10,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -22,28 +24,34 @@ public class BlockService {
 
     @Transactional
     public void block(Long blockerId, Long blockedId) {
-        if (blockerId.equals(blockedId)) {
+        boolean blockingYourself = blockerId.equals(blockedId);
+        if (blockingYourself) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot block yourself.");
         }
-        // Idempotent: if already blocked, do nothing.
-        if (blockRepository.existsByBlocker_IdAndBlocked_Id(blockerId, blockedId)) {
+
+        boolean alreadyBlocked = blockRepository.existsByBlocker_IdAndBlocked_Id(blockerId, blockedId);
+        if (alreadyBlocked) {
             return;
         }
-        User blocker = userRepository.findById(blockerId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
-        User blocked = userRepository.findById(blockedId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User to block not found."));
+
+        User blocker = findUserOrThrow(blockerId, "User not found.");
+        User blocked = findUserOrThrow(blockedId, "User to block not found.");
 
         Block block = new Block();
         block.setBlocker(blocker);
         block.setBlocked(blocked);
+
         blockRepository.save(block);
     }
 
     @Transactional
     public void unblock(Long blockerId, Long blockedId) {
-        blockRepository.findByBlocker_IdAndBlocked_Id(blockerId, blockedId)
-                .ifPresent(blockRepository::delete);
+        Optional<Block> existingBlock =
+                blockRepository.findByBlocker_IdAndBlocked_Id(blockerId, blockedId);
+
+        if (existingBlock.isPresent()) {
+            blockRepository.delete(existingBlock.get());
+        }
     }
 
     @Transactional(readOnly = true)
@@ -51,13 +59,9 @@ public class BlockService {
         return blockRepository.existsByBlocker_IdAndBlocked_Id(blockerId, blockedId);
     }
 
-    /**
-     * True if either user has blocked the other. A DM must not be delivered when
-     * this is true.
-     */
     @Transactional(readOnly = true)
-    public boolean isBlockedBetween(Long a, Long b) {
-        return blockRepository.existsBlockBetween(a, b);
+    public boolean isBlockedBetween(Long firstUserId, Long secondUserId) {
+        return blockRepository.existsBlockBetween(firstUserId, secondUserId);
     }
 
     @Transactional(readOnly = true)
@@ -72,15 +76,32 @@ public class BlockService {
 
     @Transactional(readOnly = true)
     public List<BlockedUserResponse> listBlocked(Long blockerId) {
-        return blockRepository.findByBlocker_Id(blockerId).stream()
-                .map(b -> {
-                    User u = b.getBlocked();
-                    return new BlockedUserResponse(
-                            u.getId(),
-                            u.getName(),
-                            storageService.presignedUrl(u.getAvatarUrl()),
-                            b.getCreatedAt());
-                })
-                .toList();
+        List<Block> blocks = blockRepository.findByBlocker_Id(blockerId);
+
+        List<BlockedUserResponse> blockedUsers = new ArrayList<>();
+        for (Block block : blocks) {
+            BlockedUserResponse response = toBlockedUserResponse(block);
+            blockedUsers.add(response);
+        }
+        return blockedUsers;
+    }
+
+    private BlockedUserResponse toBlockedUserResponse(Block block) {
+        User blockedUser = block.getBlocked();
+        String avatarUrl = storageService.presignedUrl(blockedUser.getAvatarUrl());
+
+        return new BlockedUserResponse(
+                blockedUser.getId(),
+                blockedUser.getName(),
+                avatarUrl,
+                block.getCreatedAt());
+    }
+
+    private User findUserOrThrow(Long userId, String notFoundMessage) {
+        Optional<User> maybeUser = userRepository.findById(userId);
+        if (maybeUser.isEmpty()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, notFoundMessage);
+        }
+        return maybeUser.get();
     }
 }

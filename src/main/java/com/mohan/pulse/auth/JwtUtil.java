@@ -14,24 +14,27 @@ import java.util.Date;
 public class JwtUtil {
 
     private final SecretKey signingKey;
-
     private final long expirationMillis;
 
     public JwtUtil(
             @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.expiration-ms}") long expirationMillis) {
 
-        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+        this.signingKey = Keys.hmacShaKeyFor(secretBytes);
         this.expirationMillis = expirationMillis;
     }
 
     public String generateToken(Long userId) {
-
         Date issuedAt = new Date();
-        Date expiresAt = new Date(issuedAt.getTime() + expirationMillis);
+
+        long expiryTimeInMillis = issuedAt.getTime() + expirationMillis;
+        Date expiresAt = new Date(expiryTimeInMillis);
+
+        String subject = String.valueOf(userId);
 
         return Jwts.builder()
-                .subject(String.valueOf(userId))
+                .subject(subject)
                 .issuedAt(issuedAt)
                 .expiration(expiresAt)
                 .signWith(signingKey)
@@ -40,14 +43,15 @@ public class JwtUtil {
 
     public Long extractUserId(String token) {
         Claims claims = parseClaims(token);
-        return Long.valueOf(claims.getSubject());
+        String subject = claims.getSubject();
+        return Long.valueOf(subject);
     }
 
     public boolean isValid(String token) {
         try {
             parseClaims(token);
             return true;
-        } catch (Exception ex) {
+        } catch (Exception e) {
             return false;
         }
     }

@@ -1,15 +1,16 @@
-package com.mohan.pulse.group.dtos;
+package com.mohan.pulse.message.dtos;
 
-import com.mohan.pulse.group.GroupRole;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.time.Instant;
+
 @Getter
 @AllArgsConstructor
-public class GroupMemberResponse {
-
+public class ConversationPartner {
     private Long userId;
     private String name;
+    private String phone;
     private String avatarUrl;
-    private GroupRole role;
+    private Instant lastSeen;
 }

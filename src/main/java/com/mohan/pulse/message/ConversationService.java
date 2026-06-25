@@ -1,17 +1,22 @@
 package com.mohan.pulse.message;
 
+import com.mohan.pulse.block.BlockService;
+import com.mohan.pulse.common.ApiException;
+import com.mohan.pulse.common.ConversationUtil;
+import com.mohan.pulse.group.GroupMemberRepository;
+import com.mohan.pulse.message.dtos.ConversationPartner;
 import com.mohan.pulse.message.dtos.MessageResponse;
 import com.mohan.pulse.message.dtos.MessageStatusUpdate;
 import com.mohan.pulse.message.dtos.PagedMessages;
+import com.mohan.pulse.reaction.ReactionService;
 import com.mohan.pulse.reaction.dtos.ReactionEntry;
 import com.mohan.pulse.message.dtos.ReplySummary;
-import com.mohan.pulse.status.dtos.StatusPreviewDto;
-import com.mohan.pulse.common.ApiException;
 import com.mohan.pulse.status.Status;
-import com.mohan.pulse.reaction.ReactionService;
-import com.mohan.pulse.group.GroupMemberRepository;
 import com.mohan.pulse.status.StatusRepository;
-import com.mohan.pulse.common.ConversationUtil;
+import com.mohan.pulse.status.dtos.StatusPreviewDto;
+import com.mohan.pulse.storage.StorageService;
+import com.mohan.pulse.user.User;
+import com.mohan.pulse.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -19,16 +24,15 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ConversationService {
-
-    private static final int DEFAULT_LIMIT = 30;
 
     private final MessageRepository messageRepository;
     private final GroupMemberRepository groupMemberRepository;
@@ -37,10 +41,9 @@ public class ConversationService {
     private final ReactionService reactionService;
     private final MessageRecipientStatusRepository recipientStatusRepository;
     private final DeletedMessageRepository deletedMessageRepository;
-    private final com.mohan.pulse.storage.StorageService storageService;
-    private final com.mohan.pulse.block.BlockService blockService;
-
-    // ── Direct message conversation (paginated) ───────────────────────────────
+    private final StorageService storageService;
+    private final BlockService blockService;
+    private final UserRepository userRepository;
 
     public PagedMessages getDirectConversation(Long currentUserId,
                                                Long otherUserId,
@@ -50,129 +53,204 @@ public class ConversationService {
         return fetchPage(conversationId, beforeId, limit, currentUserId);
     }
 
-    // ── Group conversation (paginated) ────────────────────────────────────────
-
     public PagedMessages getGroupConversation(Long currentUserId,
                                               Long groupId,
                                               Long beforeId,
                                               int limit) {
-        if (!groupMemberRepository.existsByGroupIdAndUserId(groupId, currentUserId)) {
+        boolean isMember = groupMemberRepository.existsByGroupIdAndUserId(groupId, currentUserId);
+        if (!isMember) {
             throw new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this group.");
         }
+
         String conversationId = ConversationUtil.groupConversationId(groupId);
         return fetchPage(conversationId, beforeId, limit, currentUserId);
     }
 
-    // ── Unread counts across all conversations ────────────────────────────────
-    // Returns conversationId → number of unread messages, for the chat-list badges.
-
     public Map<String, Integer> getUnreadCounts(Long userId) {
-        return recipientStatusRepository
-                .countUnreadPerConversation(userId)
-                .stream()
-                .collect(Collectors.toMap(
-                        row -> (String) row[0],            // conversationId
-                        row -> ((Long) row[1]).intValue()  // count
-                ));
+        List<Object[]> rows = recipientStatusRepository.countUnreadPerConversation(userId);
+
+        Map<String, Integer> unreadByConversation = new HashMap<>();
+        for (Object[] row : rows) {
+            String conversationId = (String) row[0];
+            int count = ((Long) row[1]).intValue();
+            unreadByConversation.put(conversationId, count);
+        }
+        return unreadByConversation;
     }
 
-    // ── Core paging logic ─────────────────────────────────────────────────────
+    public List<ConversationPartner> getPartners(Long currentUserId) {
+        Set<String> conversationIds = new HashSet<>();
+        conversationIds.addAll(messageRepository.findDirectConversationIdsBySender(currentUserId));
+        conversationIds.addAll(recipientStatusRepository.findDirectConversationIdsForRecipient(currentUserId));
+
+        Set<Long> partnerIds = new HashSet<>();
+        for (String conversationId : conversationIds) {
+            long[] participants = ConversationUtil.dmParticipants(conversationId);
+
+            long otherUserId;
+            if (participants[0] == currentUserId) {
+                otherUserId = participants[1];
+            } else {
+                otherUserId = participants[0];
+            }
+            partnerIds.add(otherUserId);
+        }
+
+        List<ConversationPartner> partners = new ArrayList<>();
+        for (User user : userRepository.findAllById(partnerIds)) {
+            String avatarUrl = storageService.presignedUrl(user.getAvatarUrl());
+            partners.add(new ConversationPartner(
+                    user.getId(), user.getName(), user.getPhone(), avatarUrl, user.getLastSeen()));
+        }
+        return partners;
+    }
 
     private PagedMessages fetchPage(String conversationId, Long beforeId, int limit, Long currentUserId) {
-        var pageable = PageRequest.of(0, limit);
+        PageRequest pageRequest = PageRequest.of(0, limit);
 
-        // Fetch DESC (newest first within the batch) so LIMIT grabs the right end.
-        List<Message> raw = (beforeId == null)
-                ? messageRepository.findByConversationIdOrderByCreatedAtDesc(
-                conversationId, pageable)
-                : messageRepository.findByConversationIdAndIdLessThanOrderByCreatedAtDesc(
-                conversationId, beforeId, pageable);
+        List<Message> newestFirst;
+        if (beforeId == null) {
+            newestFirst = messageRepository
+                    .findByConversationIdOrderByCreatedAtDesc(conversationId, pageRequest);
+        } else {
+            newestFirst = messageRepository
+                    .findByConversationIdAndIdLessThanOrderByCreatedAtDesc(conversationId, beforeId, pageRequest);
+        }
 
-        // Reverse to chronological (oldest→newest) before mapping to responses.
-        List<Message> messages = new ArrayList<>(raw);
-        Collections.reverse(messages);
+        boolean hasMore = (newestFirst.size() == limit);
 
-        // hasMore: a full batch means there may be older messages to load.
-        boolean hasMore = raw.size() == limit;
+        List<Message> oldestFirst = new ArrayList<>(newestFirst);
+        Collections.reverse(oldestFirst);
 
-        return new PagedMessages(toResponses(messages, currentUserId), hasMore);
+        List<MessageResponse> responses = toResponses(oldestFirst, currentUserId);
+        return new PagedMessages(responses, hasMore);
     }
 
-    // ── Map Message entities → MessageResponse DTOs ───────────────────────────
-
     private List<MessageResponse> toResponses(List<Message> messages, Long currentUserId) {
-        if (messages.isEmpty()) return List.of();
+        if (messages.isEmpty()) {
+            return List.of();
+        }
 
-        List<Long> messageIds = messages.stream().map(Message::getId).toList();
+        List<Long> messageIds = collectIds(messages);
 
-        // Which of these did the current user delete-for-me? Filter them out.
-        Set<Long> hiddenForMe = deletedMessageRepository
-                .findByUser_IdAndMessage_IdIn(currentUserId, messageIds).stream()
-                .map(dm -> dm.getMessage().getId())
-                .collect(Collectors.toSet());
+        Set<Long> hiddenMessageIds = hiddenMessageIdsFor(currentUserId, messageIds);
+        Set<Long> blockedAuthorIds = new HashSet<>(blockService.blockedIdsOf(currentUserId));
 
-        // Messages authored by anyone the current user has blocked are hidden
-        // from the current user — in DMs AND in shared groups. (One-directional:
-        // the blocker hides the blocked; the blocked still sees normally.)
-        Set<Long> blockedAuthorIds = new java.util.HashSet<>(
-                blockService.blockedIdsOf(currentUserId));
+        Map<Long, MessageStatusUpdate> statusByMessageId = messageStatusService.statusForMessages(messageIds);
+        Map<Long, List<ReactionEntry>> reactionsByMessageId = reactionService.reactionsForMessages(messageIds);
+        Map<Long, Status> repliedStatusById = repliedStatusesFor(messages);
 
-        Map<Long, MessageStatusUpdate> statusById =
-                messageStatusService.statusForMessages(messageIds);
-        Map<Long, List<ReactionEntry>> reactionsById =
-                reactionService.reactionsForMessages(messageIds);
+        List<MessageResponse> responses = new ArrayList<>();
+        for (Message message : messages) {
+            boolean hiddenForMe = hiddenMessageIds.contains(message.getId());
+            if (hiddenForMe) {
+                continue;
+            }
 
-        // Batch-fetch any statuses that were replied to
-        Set<Long> statusIds = messages.stream()
-                .map(Message::getReplyToStatusId)
-                .filter(id -> id != null)
-                .collect(Collectors.toSet());
+            boolean authorBlocked = blockedAuthorIds.contains(message.getSender().getId());
+            if (authorBlocked) {
+                continue;
+            }
 
-        Map<Long, Status> statusesById = statusRepository.findAllById(statusIds)
-                .stream()
-                .collect(Collectors.toMap(Status::getId, s -> s));
+            MessageStatusUpdate status = statusByMessageId.get(message.getId());
+            List<ReactionEntry> reactions = reactionsByMessageId.getOrDefault(message.getId(), List.of());
 
-        return messages.stream()
-                .filter(message -> !hiddenForMe.contains(message.getId())) // drop delete-for-me
-                .filter(message -> !blockedAuthorIds.contains(message.getSender().getId())) // drop blocked authors
-                .map(message -> {
-                    MessageStatusUpdate s = statusById.get(message.getId());
-                    ReplySummary reply = ReplySummary.from(message.getReplyTo());
+            responses.add(buildMessageResponse(message, status, reactions, repliedStatusById));
+        }
+        return responses;
+    }
 
-                    StatusPreviewDto preview = null;
-                    if (message.getReplyToStatusId() != null) {
-                        Status status = statusesById.get(message.getReplyToStatusId());
-                        if (status != null) {
-                            preview = StatusPreviewDto.builder()
-                                    .authorName(status.getAuthor().getName())
-                                    .content(status.getContent())
-                                    .mediaUrl(storageService.presignedUrl(status.getMediaUrl()))
-                                    .build();
-                        }
-                    }
+    private MessageResponse buildMessageResponse(Message message,
+                                                 MessageStatusUpdate status,
+                                                 List<ReactionEntry> reactions,
+                                                 Map<Long, Status> repliedStatusById) {
+        ReplySummary reply = ReplySummary.from(message.getReplyTo());
+        StatusPreviewDto statusPreview = buildStatusPreview(message, repliedStatusById);
 
-                    return new MessageResponse(
-                            message.getId(),
-                            message.getSender().getId(),
-                            message.getContent(),
-                            message.getCreatedAt(),
-                            s != null ? s.getStatus() : MessageStatus.SENT,
-                            s != null ? s.getDeliveredCount() : 0,
-                            s != null ? s.getReadCount() : 0,
-                            s != null ? s.getTotalRecipients() : 0,
-                            message.getType().name(),
-                            storageService.presignedUrl(message.getMediaUrl()),
-                            reply.replyToId(),
-                            reply.replyToSenderId(),
-                            reply.replyToSenderName(),
-                            reply.replyToContent(),
-                            reply.replyToType(),
-                            reply.replyToDeleted(),
-                            reactionsById.getOrDefault(message.getId(), List.of()),
-                            preview,
-                            message.isEdited(),
-                            message.isDeleted());
-                })
-                .toList();
+        MessageStatus aggregatedStatus = MessageStatus.SENT;
+        int deliveredCount = 0;
+        int readCount = 0;
+        int totalRecipients = 0;
+        if (status != null) {
+            aggregatedStatus = status.getStatus();
+            deliveredCount = status.getDeliveredCount();
+            readCount = status.getReadCount();
+            totalRecipients = status.getTotalRecipients();
+        }
+
+        return MessageResponse.builder()
+                .id(message.getId())
+                .senderId(message.getSender().getId())
+                .content(message.getContent())
+                .createdAt(message.getCreatedAt())
+                .status(aggregatedStatus)
+                .deliveredCount(deliveredCount)
+                .readCount(readCount)
+                .totalRecipients(totalRecipients)
+                .type(message.getType().name())
+                .mediaUrl(storageService.presignedUrl(message.getMediaUrl()))
+                .replyToId(reply.getReplyToId())
+                .replyToSenderId(reply.getReplyToSenderId())
+                .replyToSenderName(reply.getReplyToSenderName())
+                .replyToContent(reply.getReplyToContent())
+                .replyToType(reply.getReplyToType())
+                .replyToDeleted(reply.isReplyToDeleted())
+                .reactions(reactions)
+                .statusPreview(statusPreview)
+                .edited(message.isEdited())
+                .deleted(message.isDeleted())
+                .build();
+    }
+
+    private StatusPreviewDto buildStatusPreview(Message message, Map<Long, Status> repliedStatusById) {
+        Long statusId = message.getReplyToStatusId();
+        if (statusId == null) {
+            return null;
+        }
+
+        Status status = repliedStatusById.get(statusId);
+        if (status == null) {
+            return null;
+        }
+
+        String authorName = status.getAuthor().getName();
+        String content = status.getContent();
+        String mediaUrl = storageService.presignedUrl(status.getMediaUrl());
+        return new StatusPreviewDto(authorName, content, mediaUrl);
+    }
+
+    private List<Long> collectIds(List<Message> messages) {
+        List<Long> messageIds = new ArrayList<>();
+        for (Message message : messages) {
+            messageIds.add(message.getId());
+        }
+        return messageIds;
+    }
+
+    private Set<Long> hiddenMessageIdsFor(Long currentUserId, List<Long> messageIds) {
+        List<DeletedMessage> deletedMessages =
+                deletedMessageRepository.findByUser_IdAndMessage_IdIn(currentUserId, messageIds);
+
+        Set<Long> hiddenMessageIds = new HashSet<>();
+        for (DeletedMessage deletedMessage : deletedMessages) {
+            hiddenMessageIds.add(deletedMessage.getMessage().getId());
+        }
+        return hiddenMessageIds;
+    }
+
+    private Map<Long, Status> repliedStatusesFor(List<Message> messages) {
+        Set<Long> statusIds = new HashSet<>();
+        for (Message message : messages) {
+            Long statusId = message.getReplyToStatusId();
+            if (statusId != null) {
+                statusIds.add(statusId);
+            }
+        }
+
+        Map<Long, Status> statusById = new HashMap<>();
+        for (Status status : statusRepository.findAllById(statusIds)) {
+            statusById.put(status.getId(), status);
+        }
+        return statusById;
     }
 }

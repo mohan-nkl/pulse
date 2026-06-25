@@ -30,7 +30,6 @@ public class UserProfileController {
         return ResponseEntity.ok(ApiResponse.ok("Profile updated.", userProfileService.updateProfile(userId, request)));
     }
 
-    // TODO: avatar upload currently uses local disk storage — will be migrated to MinIO
     @PostMapping("/profile/avatar")
     public ResponseEntity<ApiResponse<String>> uploadAvatar(
             @RequestParam("file") MultipartFile file) {

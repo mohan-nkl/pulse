@@ -15,11 +15,6 @@ import java.io.InputStream;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Wraps MinIO object storage. Uploads return an OBJECT KEY (e.g. "avatars/ab12.jpg"),
- * not a URL — we store the key and mint a fresh presigned URL on read, because
- * presigned URLs expire.
- */
 @Service
 @RequiredArgsConstructor
 public class StorageService {
@@ -32,55 +27,66 @@ public class StorageService {
     @Value("${minio.presigned-expiry-minutes}")
     private int expiryMinutes;
 
-    /**
-     * Upload a file under the given folder ("avatars", "media", "status").
-     * Returns the object key to store in the DB.
-     */
     public String upload(String folder, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "File must not be empty.");
         }
 
-        String key = folder + "/" + UUID.randomUUID() + extension(file.getOriginalFilename());
-
-        try (InputStream in = file.getInputStream()) {
-            minioClient.putObject(
-                    PutObjectArgs.builder()
-                            .bucket(bucket)
-                            .object(key)
-                            .stream(in, file.getSize(), -1)
-                            .contentType(file.getContentType())
-                            .build());
-        } catch (Exception e) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload file.");
-        }
-
-        return key;
+        String objectKey = buildObjectKey(folder, file.getOriginalFilename());
+        saveToMinio(objectKey, file);
+        return objectKey;
     }
 
-    /**
-     * Generate a time-limited presigned URL for an object key.
-     * Returns null for null/blank keys so callers can pass through cleanly.
-     */
     public String presignedUrl(String key) {
         if (key == null || key.isBlank()) {
             return null;
         }
+        return generatePresignedUrl(key);
+    }
+
+    private String buildObjectKey(String folder, String originalFilename) {
+        String uniqueName = UUID.randomUUID().toString();
+        String fileExtension = extension(originalFilename);
+        return folder + "/" + uniqueName + fileExtension;
+    }
+
+    private void saveToMinio(String objectKey, MultipartFile file) {
+        try (InputStream fileStream = file.getInputStream()) {
+            long letMinioChoosePartSize = -1;
+
+            PutObjectArgs putRequest = PutObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(objectKey)
+                    .stream(fileStream, file.getSize(), letMinioChoosePartSize)
+                    .contentType(file.getContentType())
+                    .build();
+
+            minioClient.putObject(putRequest);
+        } catch (Exception e) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload file.");
+        }
+    }
+
+    private String generatePresignedUrl(String key) {
         try {
-            return minioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .method(Method.GET)
-                            .bucket(bucket)
-                            .object(key)
-                            .expiry(expiryMinutes, TimeUnit.MINUTES)
-                            .build());
+            GetPresignedObjectUrlArgs urlRequest = GetPresignedObjectUrlArgs.builder()
+                    .method(Method.GET)
+                    .bucket(bucket)
+                    .object(key)
+                    .expiry(expiryMinutes, TimeUnit.MINUTES)
+                    .build();
+
+            return minioClient.getPresignedObjectUrl(urlRequest);
         } catch (Exception e) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to generate file URL.");
         }
     }
 
     private String extension(String filename) {
-        if (filename == null || !filename.contains(".")) return "";
-        return filename.substring(filename.lastIndexOf('.'));
+        if (filename == null || !filename.contains(".")) {
+            return "";
+        }
+        int lastDotIndex = filename.lastIndexOf('.');
+        return filename.substring(lastDotIndex);
     }
 }
