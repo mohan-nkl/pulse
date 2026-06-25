@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../context/NotificationContext";
 import { useSocket } from "../context/SocketContext";
+import NotificationToast from "../components/NotificationToast";
 import HomeButton from "../components/HomeButton";
 import client from "../api/client";
 import { uploadMedia, getMessageType } from "../api/mediaApi";
@@ -15,6 +16,7 @@ import {
     sendTyping,
 } from "../services/WebSocket.js";
 import { listGroups, getGroupHistory, getGroupMembers } from "../api/groupApi";
+import { blockUser, unblockUser, getBlockStatus } from "../api/blockApi";
 import NewGroupModal from "../components/NewGroupModal";
 import GroupMembersPanel from "../components/GroupMembersPanel";
 
@@ -266,8 +268,8 @@ function ReactionPills({ reactions, currentUserId, onToggle }) {
 export default function ChatPage() {
     const { user } = useAuth();
     const currentUserId = user?.userId;
-    const { clearConversation, unreadPerConversation, refreshUnreadCounts } = useNotification();
-    const { presence, setPresence, addListener, setOpenConversation } = useSocket();
+    const { clearConversation, unreadPerConversation } = useNotification();
+    const { presence, setPresence, activeToast, setActiveToast, addListener, setOpenConversation } = useSocket();
 
     const [contacts, setContacts] = useState([]);
     const [groups, setGroups] = useState([]);
@@ -299,6 +301,8 @@ export default function ChatPage() {
 
     const [showNewGroup, setShowNewGroup] = useState(false);
     const [showMembers, setShowMembers] = useState(false);
+    const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+    const [isBlocked, setIsBlocked] = useState(false); // have I blocked the open DM contact?
 
     // Media: upload-in-progress flag and the currently-open lightbox image.
     const [isUploading, setIsUploading] = useState(false);
@@ -396,10 +400,6 @@ export default function ChatPage() {
             }
         };
         init();
-
-        // Reconcile unread badges with the backend whenever the chat page mounts
-        // (e.g. navigating here from Home), so the count is correct immediately.
-        refreshUnreadCounts();
 
         // The socket itself lives in SocketContext (app-wide). Here we just
         // register the chat-page-specific listeners and clean them up on unmount.
@@ -501,10 +501,6 @@ export default function ChatPage() {
         return () => {
             // Remove our listeners (the socket itself stays alive in the provider).
             unsubscribers.forEach((off) => off());
-            // Leaving the chat page: tell the provider no conversation is open,
-            // so it resumes sending delivery receipts and showing toasts for
-            // incoming messages on other pages.
-            setOpenConversation(null);
             // Clear any pending typing timers so they don't fire after unmount.
             if (typingIdleTimerRef.current) clearTimeout(typingIdleTimerRef.current);
             Object.values(typingExpiryTimersRef.current).forEach(clearTimeout);
@@ -683,6 +679,28 @@ export default function ChatPage() {
         }
     };
 
+    const handleBlock = async () => {
+        if (selected?.type !== "dm") return;
+        try {
+            await blockUser(selected.userId);
+            setIsBlocked(true);
+            setHeaderMenuOpen(false);
+        } catch {
+            alert("Could not block this contact. Please try again.");
+        }
+    };
+
+    const handleUnblock = async () => {
+        if (selected?.type !== "dm") return;
+        try {
+            await unblockUser(selected.userId);
+            setIsBlocked(false);
+            setHeaderMenuOpen(false);
+        } catch {
+            alert("Could not unblock this contact. Please try again.");
+        }
+    };
+
     const openDirect = async (contact) => {
         const convId = dmConversationId(currentUserId, contact.userId);
         // Leaving the previous chat: stop any typing signal there.
@@ -692,7 +710,14 @@ export default function ChatPage() {
         setSelected({ type: "dm", userId: contact.userId, name: contact.name });
         openConversationIdRef.current = convId;
         setShowMembers(false);
+        setHeaderMenuOpen(false);
         setMemberNames({});
+
+        // Load whether I've blocked this contact (for the header menu label).
+        setIsBlocked(false);
+        getBlockStatus(contact.userId)
+            .then((r) => setIsBlocked(!!r.blocked))
+            .catch(() => setIsBlocked(false));
 
         try {
             const response = await client.get(`/api/conversations/${contact.userId}`);
@@ -707,9 +732,7 @@ export default function ChatPage() {
 
         // Opening a chat means I've read everything in it.
         markReadIfFocused(convId);
-        clearConversation(convId); // zero its unread badge instantly
-        // Reconcile to the backend truth shortly after (read receipts have flushed).
-        setTimeout(() => refreshUnreadCounts(), 600);
+        clearConversation(convId); // zero its unread badge
 
         // Refresh this person's presence for the header.
         try {
@@ -755,9 +778,7 @@ export default function ChatPage() {
 
         // Opening the group means I've read everything in it.
         markReadIfFocused(convId);
-        clearConversation(convId); // zero its unread badge instantly
-        // Reconcile to the backend truth shortly after (read receipts have flushed).
-        setTimeout(() => refreshUnreadCounts(), 600);
+        clearConversation(convId); // zero its unread badge
     };
 
     // ---- replies ----
@@ -1106,6 +1127,36 @@ export default function ChatPage() {
                                     Members
                                 </button>
                             )}
+                            {selected.type === "dm" && (
+                                <div style={{ position: "relative" }}>
+                                    <button
+                                        style={styles.infoBtn}
+                                        onClick={() => setHeaderMenuOpen((v) => !v)}
+                                        aria-label="Chat options"
+                                    >
+                                        ⋮
+                                    </button>
+                                    {headerMenuOpen && (
+                                        <div style={styles.headerMenu}>
+                                            {isBlocked ? (
+                                                <button
+                                                    style={styles.headerMenuItem}
+                                                    onClick={handleUnblock}
+                                                >
+                                                    Unblock
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    style={{ ...styles.headerMenuItem, color: "#f15c6d" }}
+                                                    onClick={handleBlock}
+                                                >
+                                                    Block
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </header>
 
                         <div
@@ -1418,8 +1469,23 @@ export default function ChatPage() {
 
             <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
 
-            {/* Toast is now rendered app-wide by SocketProvider */}
-
+            <NotificationToast
+                notification={activeToast}
+                onClose={() => setActiveToast(null)}
+                onClick={(conversationId) => {
+                    if (conversationId?.startsWith("dm:")) {
+                        const parts = conversationId.split(":");
+                        const otherId = Number(parts[1]) === currentUserId ? Number(parts[2]) : Number(parts[1]);
+                        const contact = contacts.find((c) => c.userId === otherId);
+                        if (contact) openDirect(contact);
+                    } else if (conversationId?.startsWith("group:")) {
+                        const groupId = Number(conversationId.split(":")[1]);
+                        const group = groups.find((g) => g.id === groupId);
+                        if (group) openGroup(group);
+                    }
+                    setActiveToast(null);
+                }}
+            />
         </div>
     );
 }
@@ -1511,6 +1577,29 @@ const styles = {
     headerAvatar: { width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover", flex: "0 0 auto" },
     headerAvatarFallback: { width: "38px", height: "38px", borderRadius: "50%", background: "#2a3942", color: "#e9edef", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: 600, flex: "0 0 auto" },
     headerName: { fontWeight: 600, fontSize: "15px" },
+    headerMenu: {
+        position: "absolute",
+        top: "36px",
+        right: "0",
+        background: "#233138",
+        border: "1px solid #2a3942",
+        borderRadius: "8px",
+        boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+        zIndex: 30,
+        minWidth: "140px",
+        overflow: "hidden",
+    },
+    headerMenuItem: {
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        padding: "10px 14px",
+        background: "none",
+        border: "none",
+        color: "#e9edef",
+        fontSize: "14px",
+        cursor: "pointer",
+    },
     presenceLine: { fontSize: "12px", color: "#8696a0", marginTop: "1px", minHeight: "14px" },
     infoBtn: {
         fontSize: "13px",
