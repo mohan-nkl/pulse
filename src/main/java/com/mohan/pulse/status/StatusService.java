@@ -8,24 +8,19 @@ import com.mohan.pulse.status.dtos.StatusResponse;
 import com.mohan.pulse.status.dtos.StatusViewerResponse;
 import com.mohan.pulse.common.ApiException;
 import com.mohan.pulse.message.ChatService;
+import com.mohan.pulse.storage.StorageService;
 import com.mohan.pulse.user.User;
 import com.mohan.pulse.contact.ContactRepository;
 import com.mohan.pulse.user.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,12 +32,7 @@ public class StatusService {
     private final UserRepository       userRepository;
     private final ContactRepository    contactRepository;
     private final ChatService chatService;
-
-    @Value("${app.upload.status-dir}")
-    private String statusDir;
-
-    @Value("${app.upload.base-url}")
-    private String baseUrl;
+    private final StorageService storageService;
 
     private static final List<String> ALLOWED_IMAGE_TYPES =
             List.of("image/jpeg", "image/png", "image/webp", "image/gif");
@@ -50,7 +40,7 @@ public class StatusService {
 
     // ── 1. Upload a status image ──────────────────────────────────────────────
     // Separate from createStatus so JSON and file data don't mix in one request.
-    // Frontend calls this first, gets back a mediaUrl, then calls createStatus.
+    // Frontend calls this first, gets back a media key, then calls createStatus.
 
     public String uploadStatusMedia(Long userId, MultipartFile file) {
         if (file == null || file.isEmpty())
@@ -60,18 +50,7 @@ public class StatusService {
         if (!ALLOWED_IMAGE_TYPES.contains(file.getContentType()))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Image must be JPEG, PNG, WebP, or GIF.");
 
-        // userId prefix in the filename makes it easy to audit who uploaded what
-        String filename = userId + "_" + UUID.randomUUID() + extension(file.getOriginalFilename());
-        Path dir = Paths.get(statusDir);
-
-        try {
-            Files.createDirectories(dir);
-            Files.write(dir.resolve(filename), file.getBytes());
-        } catch (IOException e) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to save image.");
-        }
-
-        return baseUrl + "/status-media/" + filename;
+        return storageService.upload("status", file);  // returns the object key
     }
 
     // ── 2. Create a status ────────────────────────────────────────────────────
@@ -94,7 +73,7 @@ public class StatusService {
         Status status = new Status();
         status.setAuthor(author);
         status.setContent(hasText  ? request.getContent().trim() : null);
-        status.setMediaUrl(hasMedia ? request.getMediaUrl().trim() : null);
+        status.setMediaUrl(hasMedia ? request.getMediaUrl().trim() : null);  // stores the object key
         status.setExpiresAt(Instant.now().plus(24, ChronoUnit.HOURS));
 
         return toResponse(statusRepository.save(status), authorId);
@@ -174,7 +153,7 @@ public class StatusService {
                 .map(sv -> StatusViewerResponse.builder()
                         .viewerId(sv.getViewer().getId())
                         .viewerName(sv.getViewer().getName())
-                        .viewerAvatarUrl(sv.getViewer().getAvatarUrl())
+                        .viewerAvatarUrl(storageService.presignedUrl(sv.getViewer().getAvatarUrl()))
                         .viewedAt(sv.getViewedAt())
                         .build())
                 .collect(Collectors.toList());
@@ -241,18 +220,13 @@ public class StatusService {
                 .id(status.getId())
                 .authorId(status.getAuthor().getId())
                 .authorName(status.getAuthor().getName())
-                .authorAvatarUrl(status.getAuthor().getAvatarUrl())
+                .authorAvatarUrl(storageService.presignedUrl(status.getAuthor().getAvatarUrl()))
                 .content(status.getContent())
-                .mediaUrl(status.getMediaUrl())
+                .mediaUrl(storageService.presignedUrl(status.getMediaUrl()))
                 .createdAt(status.getCreatedAt())
                 .expiresAt(status.getExpiresAt())
                 .viewCount(viewCount)
                 .viewedByMe(viewedByMe)
                 .build();
-    }
-
-    private String extension(String filename) {
-        if (filename == null || !filename.contains(".")) return ".jpg";
-        return filename.substring(filename.lastIndexOf('.'));
     }
 }
