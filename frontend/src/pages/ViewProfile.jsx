@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getUserProfile } from "../api/profileApi";
+import { blockUser, unblockUser, getBlockStatus } from "../api/blockApi";
 
 export default function ViewProfile() {
 
@@ -10,13 +11,36 @@ export default function ViewProfile() {
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [isBlocked, setIsBlocked] = useState(false);
+    const [working, setWorking] = useState(false);
 
     useEffect(() => {
         getUserProfile(userId)
             .then(setProfile)
             .catch(() => setError("Could not load this profile."))
             .finally(() => setLoading(false));
+
+        getBlockStatus(userId)
+            .then((r) => setIsBlocked(!!r.blocked))
+            .catch(() => setIsBlocked(false));
     }, [userId]);
+
+    const toggleBlock = async () => {
+        setWorking(true);
+        try {
+            if (isBlocked) {
+                await unblockUser(userId);
+                setIsBlocked(false);
+            } else {
+                await blockUser(userId);
+                setIsBlocked(true);
+            }
+        } catch {
+            alert("Action failed. Please try again.");
+        } finally {
+            setWorking(false);
+        }
+    };
 
     const formatLastSeen = (iso) => {
         if (!iso) return "a long time ago";
@@ -76,12 +100,44 @@ export default function ViewProfile() {
                     </div>
                 </div>
 
+                <button
+                    style={isBlocked ? styles.unblockBtn : styles.blockBtn}
+                    onClick={toggleBlock}
+                    disabled={working}
+                >
+                    {working ? "..." : isBlocked ? "Unblock" : "Block"}
+                </button>
+
             </div>
         </div>
     );
 }
 
 const styles = {
+    blockBtn: {
+        marginTop: "20px",
+        width: "100%",
+        padding: "12px",
+        background: "transparent",
+        color: "#f15c6d",
+        border: "1px solid #f15c6d",
+        borderRadius: "8px",
+        fontSize: "15px",
+        fontWeight: 600,
+        cursor: "pointer",
+    },
+    unblockBtn: {
+        marginTop: "20px",
+        width: "100%",
+        padding: "12px",
+        background: "#00a884",
+        color: "#fff",
+        border: "none",
+        borderRadius: "8px",
+        fontSize: "15px",
+        fontWeight: 600,
+        cursor: "pointer",
+    },
     center: {
         display: "flex", justifyContent: "center", alignItems: "center",
         minHeight: "100vh", background: "#0b141a", color: "#e9edef",
