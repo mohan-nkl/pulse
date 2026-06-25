@@ -34,6 +34,7 @@ public class ChatService {
     private final MessageStatusService messageStatusService;
     private final StatusRepository statusRepository;
     private final NotificationService notificationService;
+    private final com.mohan.pulse.storage.StorageService storageService;
 
     @Transactional
     public ChatMessageResponse sendDirectMessage(Long senderId, SendMessageRequest request) {
@@ -173,7 +174,7 @@ public class ChatService {
                 saved.getContent(),
                 saved.getCreatedAt(),
                 saved.getType().name(),
-                saved.getMediaUrl(),
+                storageService.presignedUrl(saved.getMediaUrl()),
                 reply.replyToId(),
                 reply.replyToSenderId(),
                 reply.replyToSenderName(),
@@ -197,7 +198,7 @@ public class ChatService {
                 .map(s -> StatusPreviewDto.builder()
                         .authorName(s.getAuthor().getName())
                         .content(s.getContent())
-                        .mediaUrl(s.getMediaUrl())
+                        .mediaUrl(storageService.presignedUrl(s.getMediaUrl()))
                         .build())
                 .orElse(null);
     }
