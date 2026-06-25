@@ -15,19 +15,16 @@ export default function Contacts() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
-    // Add modal
     const [showAdd, setShowAdd] = useState(false);
     const [addPhone, setAddPhone] = useState("");
     const [addAlias, setAddAlias] = useState("");
     const [addLoading, setAddLoading] = useState(false);
     const [addError, setAddError] = useState("");
 
-    // Edit alias inline
     const [editingId, setEditingId] = useState(null);
     const [editAlias, setEditAlias] = useState("");
     const [editLoading, setEditLoading] = useState(false);
 
-    // Sync panel
     const isFirstRender = useRef(true);
 
     const [showSync, setShowSync] = useState(false);
@@ -189,7 +186,7 @@ export default function Contacts() {
             <style>{css}</style>
             <div style={styles.card}>
 
-                {/* Header */}
+                {}
                 <div style={styles.header}>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                         <HomeButton />
@@ -212,7 +209,7 @@ export default function Contacts() {
                 {error && <div style={styles.error}>{error}</div>}
                 {success && <div style={styles.successBox}>{success}</div>}
 
-                {/* Search */}
+                {}
                 <input
                     style={styles.search}
                     type="text"
@@ -221,7 +218,7 @@ export default function Contacts() {
                     onChange={(e) => setQuery(e.target.value)}
                 />
 
-                {/* Contact List */}
+                {}
                 {loading ? (
                     <div style={styles.center}>Loading...</div>
                 ) : contacts.length === 0 ? (
@@ -281,7 +278,7 @@ export default function Contacts() {
                     </div>
                 )}
 
-                {/* Sync Panel */}
+                {}
                 {showSync && (
                     <div style={styles.syncPanel}>
                         <p style={styles.syncTitle}>Find people on Pulse</p>
@@ -316,7 +313,7 @@ export default function Contacts() {
                 )}
             </div>
 
-            {/* Add Contact Modal */}
+            {}
             {showAdd && (
                 <div style={styles.overlay} onClick={() => setShowAdd(false)}>
                     <div style={styles.modal} onClick={(e) => e.stopPropagation()}>

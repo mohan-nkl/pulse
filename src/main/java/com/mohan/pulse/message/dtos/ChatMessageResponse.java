@@ -1,13 +1,13 @@
 package com.mohan.pulse.message.dtos;
 
 import com.mohan.pulse.status.dtos.StatusPreviewDto;
-import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Instant;
 
 @Getter
-@AllArgsConstructor
+@Builder
 public class ChatMessageResponse {
 
     private Long id;
@@ -28,7 +28,6 @@ public class ChatMessageResponse {
 
     private StatusPreviewDto statusPreview;
 
-    // ---- Feature 15: delete / edit ----
     private boolean edited;
     private boolean deleted;
 }

@@ -11,7 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class MediaService {
 
-    private static final long MAX_SIZE = 20L * 1024 * 1024; // 20 MB
+    private static final long MAX_SIZE = 20L * 1024 * 1024;
 
     private final StorageService storageService;
 

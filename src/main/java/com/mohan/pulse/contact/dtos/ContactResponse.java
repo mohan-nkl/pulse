@@ -8,6 +8,7 @@ import java.time.Instant;
 @Getter
 @Builder
 public class ContactResponse {
+
     private Long id;
     private Long contactId;
     private String name;

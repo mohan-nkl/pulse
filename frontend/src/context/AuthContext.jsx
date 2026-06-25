@@ -4,8 +4,7 @@ import client, { saveToken, clearToken } from "../api/client.js";
 
 const USER_KEY = "pulse_user";
 
-// Auto-logout after this much inactivity. Any user interaction resets the timer.
-const INACTIVITY_LIMIT_MS = 60 * 60 * 1000; // 1 hour
+const INACTIVITY_LIMIT_MS = 60 * 60 * 1000;
 
 const AuthContext = createContext(null);
 
@@ -42,8 +41,6 @@ export function AuthProvider({ children }) {
         handleAuthSuccess(data);
     };
 
-    // Clears the local session. `reason` lets us tell the login page WHY
-    // (e.g. "expired" → show the session-expired banner).
     const clearSession = useCallback((reason) => {
         clearToken();
         localStorage.removeItem(USER_KEY);
@@ -57,7 +54,7 @@ export function AuthProvider({ children }) {
         try {
             await client.post("/api/v1/auth/logout");
         } catch (_) {
-            // best-effort — still clear local session even if request fails
+
         }
         clearSession();
     };
@@ -70,9 +67,6 @@ export function AuthProvider({ children }) {
         });
     };
 
-    // ── Inactivity auto-logout ────────────────────────────────────────────────
-    // While logged in, any interaction resets a 1-hour timer. If it elapses with
-    // no activity, we clear the session and flag it so the login page can explain.
     useEffect(() => {
         if (!user) return;
 
@@ -86,7 +80,7 @@ export function AuthProvider({ children }) {
         const events = ["mousedown", "keydown", "scroll", "touchstart", "mousemove", "click"];
         events.forEach((evt) => window.addEventListener(evt, resetTimer, { passive: true }));
 
-        resetTimer(); // start the clock
+        resetTimer();
 
         return () => {
             events.forEach((evt) => window.removeEventListener(evt, resetTimer));

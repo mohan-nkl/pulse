@@ -7,15 +7,12 @@ export default function Login() {
     const { login } = useAuth();
     const navigate = useNavigate();
 
-    // One piece of state per input field (no "name" here — that's only for signup).
     const [phone, setPhone] = useState("");
     const [password, setPassword] = useState("");
 
-    // An error message to show the user, and a flag to disable the button while submitting.
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    // Show a notice if the user was auto-logged-out for inactivity.
     const [notice, setNotice] = useState("");
     useEffect(() => {
         if (sessionStorage.getItem("pulse_logout_reason") === "expired") {
@@ -25,7 +22,7 @@ export default function Login() {
     }, []);
 
     const handleSubmit = async (event) => {
-        // Stop the browser's default "reload the page" behaviour on submit.
+
         event.preventDefault();
 
         setError("");
@@ -33,10 +30,10 @@ export default function Login() {
 
         try {
             await login({ phone, password });
-            // Logged in successfully — go to the home page.
+
             navigate("/");
         } catch (err) {
-            // For a wrong phone/password the backend returns 401 with this message.
+
             const message =
                 err.response?.data?.message || "Something went wrong. Please try again.";
             setError(message);
@@ -52,7 +49,7 @@ export default function Login() {
 
                 {notice && <div style={styles.notice}>{notice}</div>}
 
-                {/* The error banner only appears when there is an error. */}
+                {}
                 {error && <div style={styles.error}>{error}</div>}
 
                 <label style={styles.label}>Phone</label>
@@ -85,7 +82,6 @@ export default function Login() {
     );
 }
 
-// Same simple inline styles as the signup page, kept self-contained.
 const styles = {
     container: {
         display: "flex",

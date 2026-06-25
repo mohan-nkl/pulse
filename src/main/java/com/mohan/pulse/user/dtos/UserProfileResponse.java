@@ -1,13 +1,14 @@
 package com.mohan.pulse.user.dtos;
 
-import lombok.Builder;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.time.Instant;
 
 @Getter
-@Builder
+@AllArgsConstructor
 public class UserProfileResponse {
+
     private Long id;
     private String name;
     private String about;

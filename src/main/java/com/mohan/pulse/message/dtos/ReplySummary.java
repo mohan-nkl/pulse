@@ -2,15 +2,19 @@ package com.mohan.pulse.message.dtos;
 
 import com.mohan.pulse.message.Message;
 import com.mohan.pulse.message.MessageType;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
-public record ReplySummary(
-        Long replyToId,
-        Long replyToSenderId,
-        String replyToSenderName,
-        String replyToContent,
-        String replyToType,
-        boolean replyToDeleted
-) {
+@Getter
+@AllArgsConstructor
+public class ReplySummary {
+
+    private final Long replyToId;
+    private final Long replyToSenderId;
+    private final String replyToSenderName;
+    private final String replyToContent;
+    private final String replyToType;
+    private final boolean replyToDeleted;
 
     private static final int PREVIEW_MAX = 80;
 
@@ -27,13 +31,20 @@ public record ReplySummary(
         String preview;
         if (deleted) {
             preview = null;
-        } else if (replyTo.getType() != null
-                && replyTo.getType() != MessageType.TEXT) {
-            preview = (replyTo.getContent() == null || replyTo.getContent().isBlank())
-                    ? null
-                    : trim(replyTo.getContent());
+        } else if (replyTo.getType() != null && replyTo.getType() != MessageType.TEXT) {
+            boolean noCaption = (replyTo.getContent() == null || replyTo.getContent().isBlank());
+            if (noCaption) {
+                preview = null;
+            } else {
+                preview = trim(replyTo.getContent());
+            }
         } else {
             preview = trim(replyTo.getContent());
+        }
+
+        String replyToType = null;
+        if (replyTo.getType() != null) {
+            replyToType = replyTo.getType().name();
         }
 
         return new ReplySummary(
@@ -41,14 +52,19 @@ public record ReplySummary(
                 replyTo.getSender().getId(),
                 replyTo.getSender().getName(),
                 preview,
-                replyTo.getType() != null ? replyTo.getType().name() : null,
-                deleted
-        );
+                replyToType,
+                deleted);
     }
 
-    private static String trim(String s) {
-        if (s == null) return null;
-        s = s.strip();
-        return s.length() <= PREVIEW_MAX ? s : s.substring(0, PREVIEW_MAX) + "…";
+    private static String trim(String text) {
+        if (text == null) {
+            return null;
+        }
+
+        String stripped = text.strip();
+        if (stripped.length() <= PREVIEW_MAX) {
+            return stripped;
+        }
+        return stripped.substring(0, PREVIEW_MAX) + "…";
     }
 }

@@ -1,27 +1,16 @@
 import { useEffect, useState } from "react";
 
-/*
- * Shows a WhatsApp-style banner at the top of the screen when a message
- * arrives. Auto-dismisses after 4 seconds. Clicking it opens the chat.
- *
- * Props:
- *   notification  — { senderName, preview, conversationId }  or  null
- *   onClose       — called when dismissed
- *   onClick       — called when the user clicks the banner
- */
 export default function NotificationToast({ notification, onClose, onClick }) {
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
         if (!notification) return;
 
-        // Slide in
         setVisible(true);
 
-        // Auto-dismiss after 4 seconds
         const timer = setTimeout(() => {
             setVisible(false);
-            setTimeout(onClose, 300); // wait for slide-out animation
+            setTimeout(onClose, 300);
         }, 4000);
 
         return () => clearTimeout(timer);
@@ -52,7 +41,7 @@ export default function NotificationToast({ notification, onClose, onClick }) {
                 transition: "top 0.3s ease",
             }}
         >
-            {/* Green circle avatar placeholder */}
+            {}
             <div style={{
                 width: "40px",
                 height: "40px",
@@ -68,7 +57,7 @@ export default function NotificationToast({ notification, onClose, onClick }) {
                 {notification.senderName?.[0]?.toUpperCase() || "?"}
             </div>
 
-            {/* Text */}
+            {}
             <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: "600", fontSize: "14px", marginBottom: "2px" }}>
                     {notification.senderName}
@@ -84,7 +73,7 @@ export default function NotificationToast({ notification, onClose, onClick }) {
                 </div>
             </div>
 
-            {/* Close button */}
+            {}
             <button
                 onClick={(e) => { e.stopPropagation(); setVisible(false); setTimeout(onClose, 300); }}
                 style={{

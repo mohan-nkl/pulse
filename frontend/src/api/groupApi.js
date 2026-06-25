@@ -30,8 +30,27 @@ export const makeGroupAdmin = async (groupId, userId) => {
     return response.data.data;
 };
 
+export const dismissGroupAdmin = async (groupId, userId) => {
+    const response = await client.delete(`/api/groups/${groupId}/admins/${userId}`);
+    return response.data.data;
+};
+
 export const leaveGroup = async (groupId) => {
     await client.post(`/api/groups/${groupId}/leave`);
+};
+
+export const updateGroup = async (groupId, name) => {
+    const response = await client.put(`/api/groups/${groupId}`, { name });
+    return response.data.data;
+};
+
+export const uploadGroupAvatar = async (groupId, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await client.post(`/api/groups/${groupId}/avatar`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data.data;
 };
 
 export const getGroupHistory = async (groupId) => {

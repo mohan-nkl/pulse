@@ -1,12 +1,12 @@
 package com.mohan.pulse.message;
 
-import com.mohan.pulse.message.dtos.MessageEditedEvent;
-import com.mohan.pulse.message.dtos.MessageDeletedEvent;
 import com.mohan.pulse.common.ApiException;
+import com.mohan.pulse.common.ConversationUtil;
 import com.mohan.pulse.group.GroupMember;
 import com.mohan.pulse.group.GroupMemberRepository;
+import com.mohan.pulse.message.dtos.MessageDeletedEvent;
+import com.mohan.pulse.message.dtos.MessageEditedEvent;
 import com.mohan.pulse.user.UserRepository;
-import com.mohan.pulse.common.ConversationUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -15,19 +15,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class MessageActionService {
 
-    // WhatsApp-style: you can delete-for-everyone within ~1 hour of sending.
     private static final Duration DELETE_FOR_EVERYONE_WINDOW = Duration.ofHours(1);
-
     private static final String DELETED_QUEUE = "/queue/message-deleted";
 
-    // Sender can edit their own text message within 30 minutes of sending.
     private static final Duration EDIT_WINDOW = Duration.ofMinutes(30);
-
     private static final String EDITED_QUEUE = "/queue/message-edited";
 
     private final MessageRepository messageRepository;
@@ -38,12 +37,11 @@ public class MessageActionService {
 
     @Transactional
     public void deleteForMe(Long userId, Long messageId) {
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Message not found."));
-
+        Message message = findMessageOrThrow(messageId);
         ensureMember(userId, message.getConversationId());
 
-        if (deletedMessageRepository.existsByMessage_IdAndUser_Id(messageId, userId)) {
+        boolean alreadyHidden = deletedMessageRepository.existsByMessage_IdAndUser_Id(messageId, userId);
+        if (alreadyHidden) {
             return;
         }
 
@@ -51,62 +49,62 @@ public class MessageActionService {
         hidden.setMessage(message);
         hidden.setUser(userRepository.getReferenceById(userId));
         deletedMessageRepository.save(hidden);
-        // No broadcast — this only affects the current user's own view.
     }
 
     @Transactional
     public void deleteForEveryone(Long userId, Long messageId) {
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Message not found."));
+        Message message = findMessageOrThrow(messageId);
 
-        if (!message.getSender().getId().equals(userId)) {
+        boolean senderIsCaller = message.getSender().getId().equals(userId);
+        if (!senderIsCaller) {
             throw new ApiException(HttpStatus.FORBIDDEN,
                     "You can only delete your own messages for everyone.");
         }
+
         if (message.isDeleted()) {
-            return; // already deleted; nothing to do
+            return;
         }
-        if (Duration.between(message.getCreatedAt(), Instant.now())
-                .compareTo(DELETE_FOR_EVERYONE_WINDOW) > 0) {
+
+        boolean tooOld = isOlderThan(message, DELETE_FOR_EVERYONE_WINDOW);
+        if (tooOld) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "This message is too old to delete for everyone.");
         }
 
         message.setDeleted(true);
-        message.setContent(null);   // wipe the text
-        message.setMediaUrl(null);  // wipe any media reference
+        message.setContent(null);
+        message.setMediaUrl(null);
         messageRepository.save(message);
 
         broadcastDeleted(message);
     }
 
-    /**
-     * Edit a message's text. Sender only, own TEXT messages only, within the
-     * 30-minute window. Read status does not matter (WhatsApp-style). Sets
-     * `edited`=true, updates content, then broadcasts so every open client
-     * updates the bubble in place.
-     */
     @Transactional
     public void editMessage(Long userId, Long messageId, String newContent) {
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Message not found."));
+        Message message = findMessageOrThrow(messageId);
 
-        if (!message.getSender().getId().equals(userId)) {
+        boolean senderIsCaller = message.getSender().getId().equals(userId);
+        if (!senderIsCaller) {
             throw new ApiException(HttpStatus.FORBIDDEN, "You can only edit your own messages.");
         }
+
         if (message.isDeleted()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot edit a deleted message.");
         }
-        if (message.getType() != MessageType.TEXT) {
+
+        boolean notTextMessage = (message.getType() != MessageType.TEXT);
+        if (notTextMessage) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Only text messages can be edited.");
         }
-        if (newContent == null || newContent.isBlank()) {
+
+        boolean contentMissing = (newContent == null || newContent.isBlank());
+        if (contentMissing) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Edited message cannot be empty.");
         }
-        if (Duration.between(message.getCreatedAt(), Instant.now())
-                .compareTo(EDIT_WINDOW) > 0) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "This message is too old to edit.");
+
+        boolean tooOld = isOlderThan(message, EDIT_WINDOW);
+        if (tooOld) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "This message is too old to edit.");
         }
 
         message.setContent(newContent.trim());
@@ -117,54 +115,64 @@ public class MessageActionService {
     }
 
     private void broadcastDeleted(Message message) {
-        String conversationId = message.getConversationId();
-        MessageDeletedEvent event = new MessageDeletedEvent(message.getId(), conversationId);
+        MessageDeletedEvent event = new MessageDeletedEvent(message.getId(), message.getConversationId());
 
-        if (ConversationUtil.isDirect(conversationId)) {
-            long[] p = ConversationUtil.dmParticipants(conversationId);
-            send(p[0], event);
-            send(p[1], event);
-        } else if (ConversationUtil.isGroup(conversationId)) {
-            Long groupId = ConversationUtil.groupIdFrom(conversationId);
-            for (GroupMember member : groupMemberRepository.findByGroupId(groupId)) {
-                send(member.getUser().getId(), event);
-            }
+        for (Long recipientId : recipientsOf(message.getConversationId())) {
+            messagingTemplate.convertAndSendToUser(recipientId.toString(), DELETED_QUEUE, event);
         }
     }
 
-    private void send(Long recipientId, MessageDeletedEvent event) {
-        messagingTemplate.convertAndSendToUser(recipientId.toString(), DELETED_QUEUE, event);
+    private void broadcastEdited(Message message) {
+        MessageEditedEvent event = new MessageEditedEvent(
+                message.getId(), message.getConversationId(), message.getContent());
+
+        for (Long recipientId : recipientsOf(message.getConversationId())) {
+            messagingTemplate.convertAndSendToUser(recipientId.toString(), EDITED_QUEUE, event);
+        }
+    }
+
+    private List<Long> recipientsOf(String conversationId) {
+        List<Long> recipientIds = new ArrayList<>();
+
+        if (ConversationUtil.isDirect(conversationId)) {
+            long[] participants = ConversationUtil.dmParticipants(conversationId);
+            recipientIds.add(participants[0]);
+            recipientIds.add(participants[1]);
+        } else if (ConversationUtil.isGroup(conversationId)) {
+            Long groupId = ConversationUtil.groupIdFrom(conversationId);
+            for (GroupMember member : groupMemberRepository.findByGroupId(groupId)) {
+                recipientIds.add(member.getUser().getId());
+            }
+        }
+        return recipientIds;
     }
 
     private void ensureMember(Long userId, String conversationId) {
         if (ConversationUtil.isDirect(conversationId)) {
-            long[] p = ConversationUtil.dmParticipants(conversationId);
-            if (userId != p[0] && userId != p[1]) {
+            long[] participants = ConversationUtil.dmParticipants(conversationId);
+            boolean isParticipant = (userId == participants[0] || userId == participants[1]);
+            if (!isParticipant) {
                 throw new ApiException(HttpStatus.FORBIDDEN, "You are not part of this conversation.");
             }
         } else if (ConversationUtil.isGroup(conversationId)) {
             Long groupId = ConversationUtil.groupIdFrom(conversationId);
-            if (!groupMemberRepository.existsByGroupIdAndUserId(groupId, userId)) {
+            boolean isMember = groupMemberRepository.existsByGroupIdAndUserId(groupId, userId);
+            if (!isMember) {
                 throw new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this group.");
             }
         }
     }
 
-    private void broadcastEdited(Message message) {
-        String conversationId = message.getConversationId();
-        MessageEditedEvent event = new MessageEditedEvent(
-                message.getId(), conversationId, message.getContent());
+    private boolean isOlderThan(Message message, Duration window) {
+        Duration age = Duration.between(message.getCreatedAt(), Instant.now());
+        return age.compareTo(window) > 0;
+    }
 
-        if (ConversationUtil.isDirect(conversationId)) {
-            long[] p = ConversationUtil.dmParticipants(conversationId);
-            messagingTemplate.convertAndSendToUser(String.valueOf(p[0]), EDITED_QUEUE, event);
-            messagingTemplate.convertAndSendToUser(String.valueOf(p[1]), EDITED_QUEUE, event);
-        } else if (ConversationUtil.isGroup(conversationId)) {
-            Long groupId = ConversationUtil.groupIdFrom(conversationId);
-            for (GroupMember member : groupMemberRepository.findByGroupId(groupId)) {
-                messagingTemplate.convertAndSendToUser(
-                        String.valueOf(member.getUser().getId()), EDITED_QUEUE, event);
-            }
+    private Message findMessageOrThrow(Long messageId) {
+        Optional<Message> maybeMessage = messageRepository.findById(messageId);
+        if (maybeMessage.isEmpty()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Message not found.");
         }
+        return maybeMessage.get();
     }
 }

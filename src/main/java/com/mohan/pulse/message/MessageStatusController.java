@@ -16,7 +16,6 @@ public class MessageStatusController {
 
     private final MessageStatusService messageStatusService;
 
-
     @GetMapping("/{messageId}/status")
     public ApiResponse<MessageInfoResponse> getMessageInfo(@PathVariable Long messageId) {
         Long currentUserId = SecurityUtil.currentUserId();

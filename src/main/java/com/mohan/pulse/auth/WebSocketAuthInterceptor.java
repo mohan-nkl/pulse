@@ -25,13 +25,15 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
 
         String query = request.getURI().getQuery();
 
-        if (query == null || !query.contains(TOKEN_PARAM)) {
-            return false; // no token -> reject the connection
+        boolean tokenMissing = (query == null || !query.contains(TOKEN_PARAM));
+        if (tokenMissing) {
+            return false;
         }
 
         String token = extractToken(query);
 
-        if (!jwtUtil.isValid(token)) {
+        boolean tokenIsValid = jwtUtil.isValid(token);
+        if (!tokenIsValid) {
             return false;
         }
 
@@ -46,11 +48,11 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
                                ServerHttpResponse response,
                                WebSocketHandler wsHandler,
                                Exception exception) {
-
     }
 
     private String extractToken(String query) {
-        for (String part : query.split("&")) {
+        String[] queryParts = query.split("&");
+        for (String part : queryParts) {
             if (part.startsWith(TOKEN_PARAM)) {
                 return part.substring(TOKEN_PARAM.length());
             }
