@@ -60,7 +60,7 @@ export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onRe
 
             stompClient.subscribe("/user/queue/typing", (frame) => {
                 if (onTyping) {
-                    onTyping(JSON.parse(frame.body));
+                    onTyping(JSON.parse(frame.body)); 
                 }
             });
 
