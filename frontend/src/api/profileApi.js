@@ -19,6 +19,11 @@ export const uploadAvatar = async (file) => {
     return response.data.data;
 };
 
+export const removeAvatar = async () => {
+    const response = await client.delete("/api/v1/profile/avatar");
+    return response.data.data;
+};
+
 export const getUserProfile = async (userId) => {
     const response = await client.get(`/api/v1/users/${userId}/profile`);
     return response.data.data;
