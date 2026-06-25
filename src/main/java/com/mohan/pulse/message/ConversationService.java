@@ -37,6 +37,7 @@ public class ConversationService {
     private final ReactionService reactionService;
     private final MessageRecipientStatusRepository recipientStatusRepository;
     private final DeletedMessageRepository deletedMessageRepository;
+    private final com.mohan.pulse.storage.StorageService storageService;
 
     // ── Direct message conversation (paginated) ───────────────────────────────
 
@@ -137,7 +138,7 @@ public class ConversationService {
                             preview = StatusPreviewDto.builder()
                                     .authorName(status.getAuthor().getName())
                                     .content(status.getContent())
-                                    .mediaUrl(status.getMediaUrl())
+                                    .mediaUrl(storageService.presignedUrl(status.getMediaUrl()))
                                     .build();
                         }
                     }
@@ -152,7 +153,7 @@ public class ConversationService {
                             s != null ? s.getReadCount() : 0,
                             s != null ? s.getTotalRecipients() : 0,
                             message.getType().name(),
-                            message.getMediaUrl(),
+                            storageService.presignedUrl(message.getMediaUrl()),
                             reply.replyToId(),
                             reply.replyToSenderId(),
                             reply.replyToSenderName(),

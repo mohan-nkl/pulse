@@ -18,13 +18,16 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final com.mohan.pulse.storage.StorageService storageService;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
-                       JwtUtil jwtUtil) {
+                       JwtUtil jwtUtil,
+                       com.mohan.pulse.storage.StorageService storageService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.storageService = storageService;
     }
 
     public AuthResponse signup(SignupRequest request) {
@@ -71,6 +74,6 @@ public class AuthService {
                 user.getId(),
                 user.getPhone(),
                 user.getName(),
-                user.getAvatarUrl());
+                storageService.presignedUrl(user.getAvatarUrl()));
     }
 }

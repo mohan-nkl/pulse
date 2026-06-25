@@ -18,6 +18,7 @@ public class ContactService {
 
     private final ContactRepository contactRepository;
     private final UserRepository userRepository;
+    private final com.mohan.pulse.storage.StorageService storageService;
 
     public List<ContactResponse> listContacts(Long ownerId) {
         return contactRepository.findByOwner_Id(ownerId)
@@ -77,7 +78,7 @@ public class ContactService {
                 .map(u -> SyncedUserResponse.builder()
                         .userId(u.getId())
                         .name(u.getName())
-                        .avatarUrl(u.getAvatarUrl())
+                        .avatarUrl(storageService.presignedUrl(u.getAvatarUrl()))
                         .alreadyContact(existingContacts.containsKey(u.getId()))
                         .contactRecordId(existingContacts.get(u.getId()))
                         .build())
@@ -114,7 +115,7 @@ public class ContactService {
                 .contactId(u.getId())
                 .name(u.getName())
                 .alias(c.getAlias())
-                .avatarUrl(u.getAvatarUrl())
+                .avatarUrl(storageService.presignedUrl(u.getAvatarUrl()))
                 .lastSeen(u.getLastSeen())
                 .addedAt(c.getAddedAt())
                 .build();

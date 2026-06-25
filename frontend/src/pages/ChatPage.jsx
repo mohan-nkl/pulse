@@ -1691,7 +1691,7 @@ const styles = {
     // reactions: the quick-pick popover — drops DOWN from the chevron corner
     emojiPopover: {
         position: "absolute",
-        top: "24px",
+        left: "0",
         right: "2px",
         zIndex: 20,
         display: "flex",
