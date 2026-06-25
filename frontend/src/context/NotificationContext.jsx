@@ -1,24 +1,23 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useCallback } from "react";
+import client from "../api/client";
 
 /*
- * NotificationContext is a shared "storage box" for notification data.
+ * NotificationContext holds the unread badge state for the whole app.
  *
- * Without this, the ChatPage (where messages arrive) and the bell icon
- * (shown on every page) cannot communicate with each other.
- * Context solves this — it's like a global variable, but the React way.
+ * SOURCE OF TRUTH: the backend recipient-status table, exposed at
+ *   GET /api/conversations/unread-counts  ->  { "dm:1:2": 3, "group:5": 1 }
+ * This is the SAME table that drives ticks, so unread and ticks can never
+ * disagree.
  *
- * How to use in any component:
- *   const { totalUnread } = useNotification();
+ * STRATEGY (hybrid): for a responsive feel we bump/clear the badge instantly
+ * on socket events, but we RECONCILE against the backend at the moments that
+ * matter (app load, opening a conversation, after reading). That way the
+ * instant updates never drift — every open re-syncs to the truth.
  */
 
-// Step 1: Create an empty context (just a placeholder for now)
 const NotificationContext = createContext(null);
 
-// Step 2: Provider — wrap your whole app with this in main.jsx
 export function NotificationProvider({ children }) {
-
-    // The number shown on the 🔔 bell badge (e.g. 5)
-    const [totalUnread, setTotalUnread] = useState(0);
 
     // Unread count per conversation  e.g. { "dm:1:2": 3, "group:5": 1 }
     const [unreadPerConversation, setUnreadPerConversation] = useState({});
@@ -26,58 +25,63 @@ export function NotificationProvider({ children }) {
     // Last 10 notifications for the dropdown list
     const [recentNotifications, setRecentNotifications] = useState([]);
 
-    /*
-     * handleNotification
-     * Call this when a WebSocket notification arrives.
-     * The notification object looks like:
-     *   {
-     *     conversationId: "dm:1:2",
-     *     senderName: "John",
-     *     preview: "Hey, are you free?",
-     *     conversationUnread: 3,
-     *     totalUnread: 5,
-     *   }
-     */
-    const handleNotification = (notification) => {
-        setTotalUnread(notification.totalUnread);
+    // Derived: the bell badge total.
+    const totalUnread = Object.values(unreadPerConversation)
+        .reduce((sum, n) => sum + (n || 0), 0);
 
-        setUnreadPerConversation(prev => ({
+    /*
+     * refreshUnreadCounts — fetch the authoritative per-conversation unread map
+     * from the backend and replace local state with it. This is the reconcile
+     * step; call it on load and whenever we want to be certain we're correct.
+     */
+    const refreshUnreadCounts = useCallback(async () => {
+        try {
+            const res = await client.get("/api/conversations/unread-counts");
+            const counts = res.data?.data || {};
+            setUnreadPerConversation(counts);
+        } catch {
+            /* leave existing counts on failure */
+        }
+    }, []);
+
+    /*
+     * handleNotification — a message arrived for a conversation I'm NOT viewing.
+     * Bump that conversation's badge instantly for responsiveness. (The backend
+     * remains the source of truth; we reconcile on open.)
+     */
+    const handleNotification = useCallback((notification) => {
+        setUnreadPerConversation((prev) => ({
             ...prev,
-            [notification.conversationId]: notification.conversationUnread,
+            [notification.conversationId]:
+                (prev[notification.conversationId] || 0) + 1,
         }));
 
-        // Add to front of list, keep only the latest 10
-        setRecentNotifications(prev =>
+        setRecentNotifications((prev) =>
             [notification, ...prev].slice(0, 10)
         );
-    };
+    }, []);
 
     /*
-     * clearConversation
-     * Call this when the user opens a conversation (reads the messages).
-     * Removes that conversation's count from the badge.
+     * clearConversation — I opened/read this conversation. Zero its badge
+     * immediately. The backend rows are marked READ separately (sendRead), so
+     * the next reconcile will agree with this.
      */
-    const clearConversation = (conversationId) => {
-        setUnreadPerConversation(prev => {
+    const clearConversation = useCallback((conversationId) => {
+        setUnreadPerConversation((prev) => {
+            if (!prev[conversationId]) return prev;
             const updated = { ...prev };
             delete updated[conversationId];
-
-            // Recalculate total from what's left
-            const newTotal = Object.values(updated)
-                .reduce((sum, count) => sum + count, 0);
-            setTotalUnread(newTotal);
-
             return updated;
         });
-    };
+    }, []);
 
-    // Everything the rest of the app can access
     const value = {
         totalUnread,
         unreadPerConversation,
         recentNotifications,
         handleNotification,
         clearConversation,
+        refreshUnreadCounts,
     };
 
     return (
@@ -87,7 +91,6 @@ export function NotificationProvider({ children }) {
     );
 }
 
-// Step 3: Custom hook — the easy way to use this context in any component
 export function useNotification() {
     const context = useContext(NotificationContext);
     if (!context) {

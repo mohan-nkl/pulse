@@ -31,6 +31,7 @@ public class ReactionService {
     private final UserRepository userRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final com.mohan.pulse.notification.NotificationService notificationService;
 
     @Transactional
     public void react(Long userId, Long messageId, String emoji) {
@@ -55,6 +56,16 @@ public class ReactionService {
         reactionRepository.save(reaction);
 
         broadcast(message);
+
+        // Notify the message's sender that someone reacted (unless they reacted
+        // to their own message). Toast only — does not affect unread counts.
+        Long authorId = message.getSender().getId();
+        if (!authorId.equals(userId)) {
+            User reactor = userRepository.findById(userId).orElse(null);
+            String reactorName = reactor != null ? reactor.getName() : "Someone";
+            notificationService.sendReactionNotification(
+                    authorId, message.getConversationId(), reactorName, emoji);
+        }
     }
 
     @Transactional
