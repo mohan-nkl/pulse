@@ -19,6 +19,5 @@ public class SendMessageRequest {
 
     private Long replyToId;
 
-    // Optional — set only when this message is a status reply.
     private Long replyToStatusId;
 }

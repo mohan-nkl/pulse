@@ -1,25 +1,16 @@
 import { useState } from "react";
 import { useNotification } from "../context/NotificationContext";
 
-/*
- * NotificationBell renders a 🔔 icon with a red count badge.
- * Clicking it opens a dropdown showing recent notifications.
- *
- * Drop it anywhere — it reads from context automatically:
- *   import NotificationBell from "../components/NotificationBell";
- *   <NotificationBell />
- */
 export default function NotificationBell() {
 
     const { totalUnread, recentNotifications } = useNotification();
 
-    // true = dropdown is open, false = dropdown is hidden
     const [isOpen, setIsOpen] = useState(false);
 
     return (
         <div style={{ position: "relative", display: "inline-block" }}>
 
-            {/* Bell button */}
+            {}
             <button
                 onClick={() => setIsOpen(prev => !prev)}
                 style={{
@@ -34,7 +25,7 @@ export default function NotificationBell() {
             >
                 🔔
 
-                {/* Red badge — only visible when totalUnread > 0 */}
+                {}
                 {totalUnread > 0 && (
                     <span style={{
                         position: "absolute",
@@ -58,7 +49,7 @@ export default function NotificationBell() {
                 )}
             </button>
 
-            {/* Dropdown — shown only when isOpen is true */}
+            {}
             {isOpen && (
                 <div style={{
                     position: "absolute",
@@ -72,7 +63,7 @@ export default function NotificationBell() {
                     zIndex: 1000,
                     overflow: "hidden",
                 }}>
-                    {/* Header bar */}
+                    {}
                     <div style={{
                         padding: "14px 16px",
                         borderBottom: "1px solid #f0f0f0",
@@ -97,7 +88,7 @@ export default function NotificationBell() {
                         )}
                     </div>
 
-                    {/* Empty state */}
+                    {}
                     {recentNotifications.length === 0 ? (
                         <div style={{
                             padding: "24px 16px",
@@ -108,7 +99,7 @@ export default function NotificationBell() {
                             No new notifications
                         </div>
                     ) : (
-                        // One row per notification
+
                         recentNotifications.map((notif, index) => (
                             <div
                                 key={index}
@@ -120,12 +111,12 @@ export default function NotificationBell() {
                                 onMouseEnter={e => e.currentTarget.style.backgroundColor = "#f5f5f5"}
                                 onMouseLeave={e => e.currentTarget.style.backgroundColor = "white"}
                             >
-                                {/* Sender name */}
+                                {}
                                 <div style={{ fontWeight: "600", fontSize: "13px", color: "#111" }}>
                                     {notif.senderName}
                                 </div>
 
-                                {/* Message preview — truncated with "..." if too long */}
+                                {}
                                 <div style={{
                                     fontSize: "12px",
                                     color: "#555",
@@ -137,7 +128,7 @@ export default function NotificationBell() {
                                     {notif.preview}
                                 </div>
 
-                                {/* "X more messages" hint */}
+                                {}
                                 {notif.conversationUnread > 1 && (
                                     <div style={{ marginTop: "3px", fontSize: "11px", color: "#25d366", fontWeight: "600" }}>
                                         +{notif.conversationUnread - 1} more

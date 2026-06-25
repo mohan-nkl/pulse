@@ -25,10 +25,6 @@ public interface MessageRecipientStatusRepository
     List<MessageRecipientStatus> findByRecipient_IdAndMessage_ConversationIdAndStatusNot(
             Long recipientId, String conversationId, MessageStatus status);
 
-    // ── Unread count per conversation ─────────────────────────────────────────
-    // Returns one row per conversation: [conversationId (String), count (Long)].
-    // "Unread" = any status that isn't READ (i.e. SENT or DELIVERED).
-    // One query covers all conversations — no N+1.
     @Query("""
         SELECT mrs.message.conversationId, COUNT(mrs)
         FROM MessageRecipientStatus mrs
@@ -37,4 +33,12 @@ public interface MessageRecipientStatusRepository
         GROUP BY mrs.message.conversationId
         """)
     List<Object[]> countUnreadPerConversation(@Param("userId") Long userId);
+
+    @Query("""
+        SELECT DISTINCT mrs.message.conversationId
+        FROM MessageRecipientStatus mrs
+        WHERE mrs.recipient.id = :userId
+          AND mrs.message.conversationType = com.mohan.pulse.message.ConversationType.DIRECT
+        """)
+    List<String> findDirectConversationIdsForRecipient(@Param("userId") Long userId);
 }

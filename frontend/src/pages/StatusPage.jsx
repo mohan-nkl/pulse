@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 import {
     getMyStatuses,
     getContactStatuses,
@@ -11,10 +12,6 @@ import {
     getStatusViewers,
     replyToStatus,
 } from "../api/statusApi";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 function timeAgo(iso) {
     if (!iso) return "";
@@ -30,9 +27,20 @@ function avatarSrc(name, url) {
     return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "U")}&size=96&background=2a3942&color=fff`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RingAvatar — avatar with a coloured ring (green = unread, grey = seen/none)
-// ─────────────────────────────────────────────────────────────────────────────
+function isVideoUrl(url) {
+    if (!url) return false;
+    const path = url.split("?")[0].toLowerCase();
+    const videoExtensions = [".mp4", ".webm", ".mov", ".ogg", ".m4v"];
+    return videoExtensions.some((ext) => path.endsWith(ext));
+}
+
+function StatusMedia({ url, style }) {
+    if (!url) return null;
+    if (isVideoUrl(url)) {
+        return <video src={url} controls style={style} />;
+    }
+    return <img src={url} alt="status" style={style} />;
+}
 
 function RingAvatar({ name, url, hasUnread, size = 46 }) {
     const ring = hasUnread ? "#00a884" : "#3a4a54";
@@ -58,44 +66,49 @@ function RingAvatar({ name, url, hasUnread, size = 46 }) {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// StatusCard — right panel card for your own statuses, shows viewers inline
-// ─────────────────────────────────────────────────────────────────────────────
-
 function StatusCard({ status, onDelete }) {
+    const { addListener } = useSocket();
     const [viewers, setViewers] = useState([]);
 
-    // Fetch viewer names as soon as this card renders
     useEffect(() => {
         if (status.viewCount > 0) {
             getStatusViewers(status.id).then(setViewers).catch(() => {});
         }
     }, [status.id, status.viewCount]);
 
+    useEffect(() => {
+        const off = addListener("statusView", (event) => {
+            if (event.statusId === status.id) {
+                getStatusViewers(status.id).then(setViewers).catch(() => {});
+            }
+        });
+        return off;
+    }, [addListener, status.id]);
+
     return (
         <div style={p.card}>
 
-            {/* Image */}
+            {}
             {status.mediaUrl && (
-                <img src={status.mediaUrl} alt="status" style={p.cardImg} />
+                <StatusMedia url={status.mediaUrl} style={p.cardImg} />
             )}
 
-            {/* Text */}
+            {}
             {status.content && (
                 <p style={p.cardText}>{status.content}</p>
             )}
 
-            {/* Meta row: time · count · expiry · delete */}
+            {}
             <div style={p.cardMeta}>
                 <span>{timeAgo(status.createdAt)}</span>
-                <span>👁 {status.viewCount ?? 0}</span>
+                <span>👁 {viewers.length > 0 ? viewers.length : (status.viewCount ?? 0)}</span>
                 <span style={{ color: "#3a4a54", marginLeft: "auto" }}>
                     expires {timeAgo(new Date(status.expiresAt))} from now
                 </span>
                 <button style={p.delBtn} onClick={() => onDelete(status.id)} title="Delete">🗑</button>
             </div>
 
-            {/* Viewer names — shown immediately if views > 0 */}
+            {}
             {viewers.length > 0 && (
                 <div style={p.viewerSection}>
                     <span style={p.viewerSectionLabel}>Seen by</span>
@@ -118,11 +131,8 @@ function StatusCard({ status, onDelete }) {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// StatusViewer — fullscreen modal, cycles through one author's statuses
-// ─────────────────────────────────────────────────────────────────────────────
-
 function StatusViewer({ statuses, onClose }) {
+    const { addListener } = useSocket();
     const [idx, setIdx]       = useState(0);
     const [viewers, setViewers] = useState([]);
     const [reply, setReply]   = useState("");
@@ -131,14 +141,21 @@ function StatusViewer({ statuses, onClose }) {
 
     const current = statuses[idx];
 
-    // Mark viewed as soon as the item appears
+    useEffect(() => {
+        const off = addListener("statusView", (event) => {
+            if (current && event.statusId === current.id) {
+                getStatusViewers(current.id).then(setViewers).catch(() => {});
+            }
+        });
+        return off;
+    }, [addListener, current]);
+
     useEffect(() => {
         if (current && !current.viewedByMe) {
             viewStatus(current.id).catch(() => {});
         }
     }, [current]);
 
-    // Fetch viewer names whenever the visible status changes (author only)
     useEffect(() => {
         setViewers([]);
         setReply("");
@@ -162,7 +179,7 @@ function StatusViewer({ statuses, onClose }) {
             setReply("");
             setSent(true);
             setTimeout(() => setSent(false), 3000);
-        } catch { /* silent */ }
+        } catch {  }
         finally { setSending(false); }
     };
 
@@ -170,7 +187,7 @@ function StatusViewer({ statuses, onClose }) {
         <div style={v.backdrop} onClick={onClose}>
             <div style={v.card} onClick={e => e.stopPropagation()}>
 
-                {/* Progress segments */}
+                {}
                 <div style={v.progress}>
                     {statuses.map((_, i) => (
                         <div key={i} style={{
@@ -180,7 +197,7 @@ function StatusViewer({ statuses, onClose }) {
                     ))}
                 </div>
 
-                {/* Header */}
+                {}
                 <div style={v.header}>
                     <RingAvatar name={current.authorName} url={current.authorAvatarUrl} hasUnread={false} size={34} />
                     <div style={{ marginLeft: 10, flex: 1 }}>
@@ -190,14 +207,14 @@ function StatusViewer({ statuses, onClose }) {
                     <button style={v.closeBtn} onClick={onClose}>✕</button>
                 </div>
 
-                {/* Media */}
+                {}
                 {current.mediaUrl && (
                     <div style={v.mediaWrap}>
-                        <img src={current.mediaUrl} alt="status" style={v.media} />
+                        <StatusMedia url={current.mediaUrl} style={v.media} />
                     </div>
                 )}
 
-                {/* Text */}
+                {}
                 {current.content && (
                     <div style={{
                         ...v.textBox,
@@ -208,19 +225,20 @@ function StatusViewer({ statuses, onClose }) {
                     </div>
                 )}
 
-                {/* ── Seen by (author only) — always visible, no toggle ── */}
+                {}
                 {current.viewCount != null && (
                     <div style={v.seenSection}>
 
-                        {/* Count row */}
+                        {}
                         <div style={v.seenHeader}>
                             <span style={v.eyeIcon}>👁</span>
                             <span style={v.seenCount}>
-                                {current.viewCount} {current.viewCount === 1 ? "view" : "views"}
+                                {viewers.length > 0 ? viewers.length : current.viewCount}{" "}
+                                {(viewers.length > 0 ? viewers.length : current.viewCount) === 1 ? "view" : "views"}
                             </span>
                         </div>
 
-                        {/* Viewer rows — shown immediately */}
+                        {}
                         {viewers.length === 0 && current.viewCount === 0 && (
                             <p style={v.hint}>No views yet</p>
                         )}
@@ -243,7 +261,7 @@ function StatusViewer({ statuses, onClose }) {
                     </div>
                 )}
 
-                {/* ── Reply bar (contacts only, not shown on your own status) ── */}
+                {}
                 {current.viewCount == null && (
                     <div style={v.replyBar}>
                         {sent ? (
@@ -271,7 +289,7 @@ function StatusViewer({ statuses, onClose }) {
                     </div>
                 )}
 
-                {/* Navigation */}
+                {}
                 <div style={v.nav}>
                     <button style={v.navBtn} onClick={goPrev} disabled={idx === 0}>← Prev</button>
                     <span style={v.counter}>{idx + 1} / {statuses.length}</span>
@@ -284,14 +302,10 @@ function StatusViewer({ statuses, onClose }) {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ComposeForm — text + optional image, shown inline in sidebar
-// ─────────────────────────────────────────────────────────────────────────────
-
 function ComposeForm({ onPosted, onCancel }) {
     const [text, setText] = useState("");
-    const [imageFile, setImageFile]   = useState(null);  // File object
-    const [preview, setPreview]       = useState(null);  // local object URL
+    const [imageFile, setImageFile]   = useState(null);
+    const [preview, setPreview]       = useState(null);
     const [uploading, setUploading]   = useState(false);
     const [posting, setPosting]       = useState(false);
     const [error, setError]           = useState("");
@@ -319,20 +333,18 @@ function ComposeForm({ onPosted, onCancel }) {
         setError("");
         let mediaUrl = null;
 
-        // Step 1: upload image if one was selected
         if (imageFile) {
             setUploading(true);
             try {
                 mediaUrl = await uploadStatusMedia(imageFile);
             } catch (err) {
-                setError(err.response?.data?.message || "Image upload failed.");
+                setError(err.response?.data?.message || "Upload failed.");
                 setUploading(false);
                 return;
             }
             setUploading(false);
         }
 
-        // Step 2: create the status row
         setPosting(true);
         try {
             const newStatus = await createStatus({
@@ -347,22 +359,26 @@ function ComposeForm({ onPosted, onCancel }) {
         }
     };
 
-    const statusLabel = uploading ? "Uploading image…"
+    const statusLabel = uploading ? "Uploading…"
                       : posting   ? "Posting…"
                       : "Post";
 
     return (
         <div style={c.box}>
 
-            {/* Image preview */}
+            {}
             {preview && (
                 <div style={c.previewWrap}>
-                    <img src={preview} alt="preview" style={c.preview} />
-                    <button style={c.removeImg} onClick={removeImage} title="Remove image">✕</button>
+                    {imageFile && imageFile.type.startsWith("video/") ? (
+                        <video src={preview} controls style={c.preview} />
+                    ) : (
+                        <img src={preview} alt="preview" style={c.preview} />
+                    )}
+                    <button style={c.removeImg} onClick={removeImage} title="Remove">✕</button>
                 </div>
             )}
 
-            {/* Text area */}
+            {}
             <textarea
                 style={c.textarea}
                 value={text}
@@ -373,13 +389,13 @@ function ComposeForm({ onPosted, onCancel }) {
                 autoFocus={!imageFile}
             />
 
-            {/* Bottom row */}
+            {}
             <div style={c.row}>
-                {/* Image picker */}
+                {}
                 <button
                     style={c.imgBtn}
                     onClick={() => fileRef.current.click()}
-                    title="Add image"
+                    title="Add photo or video"
                     disabled={posting || uploading}
                 >
                     🖼
@@ -387,7 +403,7 @@ function ComposeForm({ onPosted, onCancel }) {
                 <input
                     ref={fileRef}
                     type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,video/ogg"
                     style={{ display: "none" }}
                     onChange={handleImage}
                 />
@@ -408,10 +424,6 @@ function ComposeForm({ onPosted, onCancel }) {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main page
-// ─────────────────────────────────────────────────────────────────────────────
-
 export default function StatusPage() {
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -421,7 +433,7 @@ export default function StatusPage() {
     const [loading,  setLoading]  = useState(true);
     const [error,    setError]    = useState("");
     const [composing, setComposing] = useState(false);
-    const [viewer,    setViewer]    = useState(null); // array of statuses to show
+    const [viewer,    setViewer]    = useState(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -439,7 +451,6 @@ export default function StatusPage() {
 
     useEffect(() => { load(); }, [load]);
 
-    // Group flat contact list by author (one sidebar row per person)
     const grouped = [];
     const seen = new Set();
     for (const s of contactStatuses) {
@@ -461,13 +472,13 @@ export default function StatusPage() {
         try {
             await deleteStatus(statusId);
             setMyStatuses(prev => prev.filter(s => s.id !== statusId));
-        } catch { /* silent */ }
+        } catch {  }
     };
 
     return (
         <div style={p.page}>
 
-            {/* ── Sidebar ────────────────────────────────────────────────── */}
+            {}
             <div style={p.sidebar}>
 
                 <div style={p.sidebarHeader}>
@@ -478,7 +489,7 @@ export default function StatusPage() {
                 {loading && <p style={p.hint}>Loading…</p>}
                 {error   && <p style={p.errText}>{error}</p>}
 
-                {/* My Status row */}
+                {}
                 <div style={p.section}>
                     <div style={p.label}>MY STATUS</div>
 
@@ -515,7 +526,7 @@ export default function StatusPage() {
                     )}
                 </div>
 
-                {/* Contact statuses */}
+                {}
                 {grouped.length > 0 && (
                     <div style={p.section}>
                         <div style={p.label}>RECENT UPDATES</div>
@@ -547,7 +558,7 @@ export default function StatusPage() {
                 )}
             </div>
 
-            {/* ── Main panel — my own status cards ─────────────────────── */}
+            {}
             <div style={p.main}>
                 {myStatuses.length === 0 ? (
                     <div style={p.empty}>
@@ -566,7 +577,7 @@ export default function StatusPage() {
                 )}
             </div>
 
-            {/* ── Viewer modal ─────────────────────────────────────────── */}
+            {}
             {viewer && (
                 <StatusViewer
                     statuses={viewer}
@@ -577,11 +588,6 @@ export default function StatusPage() {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Styles
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Viewer
 const v = {
     backdrop: {
         position: "fixed", inset: 0,
@@ -624,7 +630,6 @@ const v = {
     sentMsg:    { fontSize: 13, color: "#00a884", fontWeight: 500, textAlign: "center", width: "100%", padding: "4px 0" },
 };
 
-// Compose form
 const c = {
     box:        { margin: "0 12px 12px", background: "#1f2c34", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 8 },
     previewWrap:{ position: "relative", borderRadius: 6, overflow: "hidden" },
@@ -639,7 +644,6 @@ const c = {
     postBtn:    { background: "#00a884", border: "none", borderRadius: 6, color: "#fff", padding: "6px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600, marginLeft: "auto" },
 };
 
-// Page layout
 const p = {
     page:          { display: "flex", height: "100vh", background: "#0b141a", color: "#e9edef" },
     sidebar:       { width: 300, borderRight: "1px solid #222d34", background: "#111b21", overflowY: "auto", display: "flex", flexDirection: "column" },

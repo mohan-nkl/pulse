@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../context/NotificationContext";
 import { useSocket } from "../context/SocketContext";
@@ -20,16 +21,11 @@ import { blockUser, unblockUser, getBlockStatus } from "../api/blockApi";
 import NewGroupModal from "../components/NewGroupModal";
 import GroupMembersPanel from "../components/GroupMembersPanel";
 
-// How often (at most) we tell the server "I'm typing" while keys are flowing,
-// and how long after the last keystroke we send "I stopped".
 const TYPING_THROTTLE_MS = 2000;
 const TYPING_IDLE_MS = 3000;
-// How long a RECEIVED "typing" lasts before we clear it ourselves, in case the
-// sender's "stopped" event never arrives (dropped socket, closed tab).
+
 const TYPING_EXPIRE_MS = 4000;
 
-// Client-side mirrors of the backend ConversationUtil — must produce the SAME
-// ids, so we can tell which open conversation an incoming live message belongs to.
 function dmConversationId(a, b) {
     const smaller = Math.min(a, b);
     const larger = Math.max(a, b);
@@ -39,7 +35,6 @@ function groupConversationId(groupId) {
     return `group:${groupId}`;
 }
 
-// "2026-06-23T09:49:00Z" -> "9:49 AM"
 function formatTime(iso) {
     if (!iso) return "";
     const d = new Date(iso);
@@ -47,7 +42,6 @@ function formatTime(iso) {
     return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-// A friendly "last seen" string, WhatsApp-style.
 function formatLastSeen(iso) {
     if (!iso) return "";
     const d = new Date(iso);
@@ -61,7 +55,6 @@ function formatLastSeen(iso) {
     return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} at ${time}`;
 }
 
-// "online" / "last seen ..." / "" for the DM chat header.
 function presenceLabel(p) {
     if (!p) return "";
     if (p.online) return "online";
@@ -69,7 +62,6 @@ function presenceLabel(p) {
     return "";
 }
 
-// "3 online" if anyone (other than me) is online, else "5 members".
 function groupHeaderLabel(memberNames, presence, currentUserId) {
     const ids = Object.keys(memberNames).map(Number);
     if (ids.length === 0) return "";
@@ -77,15 +69,13 @@ function groupHeaderLabel(memberNames, presence, currentUserId) {
     return online > 0 ? `${online} online` : `${ids.length} members`;
 }
 
-// The header's second line. Typing wins over presence: if someone is typing in
-// THIS conversation, show that; otherwise fall back to online / last seen.
 function headerStatusLine(selected, typingUserIds, memberNames, presence, currentUserId) {
     if (selected.type === "dm") {
-        // For a DM there's only one other person; any typing entry means them.
+
         if (typingUserIds.length > 0) return "typing...";
         return presenceLabel(presence[selected.userId]);
     }
-    // Group: name the typers (other than me), up to two, then "and N others".
+
     const others = typingUserIds.filter((id) => id !== currentUserId);
     if (others.length > 0) {
         const names = others.map((id) => memberNames[id] || "Someone");
@@ -96,7 +86,6 @@ function headerStatusLine(selected, typingUserIds, memberNames, presence, curren
     return groupHeaderLabel(memberNames, presence, currentUserId);
 }
 
-// The tick(s) shown on MY messages: ✓ sent, ✓✓ delivered, ✓✓ blue read.
 function Ticks({ message }) {
     const status = message.status || "SENT";
     const isRead = status === "READ";
@@ -106,7 +95,6 @@ function Ticks({ message }) {
     return <span style={{ color, fontWeight: 700 }}>{symbol}</span>;
 }
 
-// Full-screen image preview, opened by clicking an image bubble.
 function Lightbox({ url, onClose }) {
     if (!url) return null;
     return (
@@ -122,8 +110,6 @@ function Lightbox({ url, onClose }) {
     );
 }
 
-// Renders the body of a message bubble.
-// For TEXT: shows the text. For IMAGE/VIDEO/AUDIO/FILE: the matching media element.
 function MessageContent({ message, onImageClick }) {
     const { type, mediaUrl, content } = message;
 
@@ -171,12 +157,9 @@ function MessageContent({ message, onImageClick }) {
         );
     }
 
-    // Default: plain text
     return <span style={styles.text}>{content}</span>;
 }
 
-// A one-line preview of a media message, used inside the reply quote block
-// when the original has no caption (e.g. "📷 Photo").
 function mediaPreviewLabel(type) {
     if (type === "IMAGE") return "📷 Photo";
     if (type === "VIDEO") return "🎥 Video";
@@ -185,9 +168,6 @@ function mediaPreviewLabel(type) {
     return "";
 }
 
-// The quote block shown INSIDE a bubble when the message is a reply.
-// Reads the flat replyTo* fields the backend attaches. Clicking it asks the
-// parent to scroll to / highlight the original (if it's still loaded).
 function QuotedMessage({ message, currentUserId, onJump }) {
     if (!message.replyToId) return null;
 
@@ -228,18 +208,11 @@ function QuotedMessage({ message, currentUserId, onJump }) {
     );
 }
 
-// A small quick-pick set for the reaction popover. "Any emoji" is supported by
-// the backend (it stores a plain string); swap this for a full picker library
-// later if you want the whole keyboard.
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
-// The reaction pills shown under a bubble. Groups the flat reaction list by
-// emoji into { emoji, count, mine }, and lets you toggle your own off by
-// tapping a pill you're part of.
-function ReactionPills({ reactions, currentUserId, onToggle }) {
+function ReactionPills({ reactions, currentUserId, onToggle, alignRight }) {
     if (!reactions || reactions.length === 0) return null;
 
-    // emoji -> { count, mine }
     const groups = {};
     for (const r of reactions) {
         const g = groups[r.emoji] || { count: 0, mine: false };
@@ -248,8 +221,13 @@ function ReactionPills({ reactions, currentUserId, onToggle }) {
         groups[r.emoji] = g;
     }
 
+    const rowStyle = {
+        ...styles.pillRow,
+        justifyContent: alignRight ? "flex-end" : "flex-start",
+    };
+
     return (
-        <div style={styles.pillRow}>
+        <div style={rowStyle}>
             {Object.entries(groups).map(([emoji, g]) => (
                 <button
                     key={emoji}
@@ -268,14 +246,14 @@ function ReactionPills({ reactions, currentUserId, onToggle }) {
 export default function ChatPage() {
     const { user } = useAuth();
     const currentUserId = user?.userId;
+    const navigate = useNavigate();
     const { clearConversation, unreadPerConversation } = useNotification();
     const { presence, setPresence, activeToast, setActiveToast, addListener, setOpenConversation } = useSocket();
 
     const [contacts, setContacts] = useState([]);
+    const [extraChats, setExtraChats] = useState([]);
     const [groups, setGroups] = useState([]);
 
-    // The open conversation: either { type: "dm", userId, name }
-    // or a group object { type: "group", id, name, myRole, ... }. null = nothing open.
     const [selected, setSelected] = useState(null);
 
     const [messages, setMessages] = useState([]);
@@ -283,84 +261,71 @@ export default function ChatPage() {
     const [loadingMore, setLoadingMore] = useState(false);
     const [draft, setDraft] = useState("");
 
-    // When set, the composer is in EDIT mode for this message { id }.
     const [editingMessage, setEditingMessage] = useState(null);
 
-    // userId -> name for the open group, so we can label who sent each message.
     const [memberNames, setMemberNames] = useState({});
 
-    // userId -> { userId, online, lastSeen } presence for contacts / open chat.
-    // userId -> { userId, online, lastSeen } presence comes from SocketContext now.
-
-    // conversationId -> { [userId]: true } for people currently typing in that
-    // chat. A per-user timer (in a ref) auto-clears the entry if no "stopped" arrives.
     const [typing, setTyping] = useState({});
 
-    // Bumped once a minute purely to re-render relative "last seen ..." labels.
     const [, setNowTick] = useState(0);
 
     const [showNewGroup, setShowNewGroup] = useState(false);
     const [showMembers, setShowMembers] = useState(false);
     const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
-    const [isBlocked, setIsBlocked] = useState(false); // have I blocked the open DM contact?
+    const [isBlocked, setIsBlocked] = useState(false);
 
-    // Media: upload-in-progress flag and the currently-open lightbox image.
     const [isUploading, setIsUploading] = useState(false);
     const [lightboxUrl, setLightboxUrl] = useState(null);
 
-    // The message the composer is currently replying to (null = not replying).
-    // Holds a small snapshot { id, senderId, senderName, content, type } so the
-    // quote bar can render without re-finding the message.
     const [replyingTo, setReplyingTo] = useState(null);
 
-    // messageId whose emoji quick-picker is currently open (null = none open).
     const [emojiPickerFor, setEmojiPickerFor] = useState(null);
 
-    // messageId currently hovered (shows the ⌄ chevron) and the message whose
-    // React/Reply menu is open (null = none).
     const [hoveredMessageId, setHoveredMessageId] = useState(null);
     const [menuFor, setMenuFor] = useState(null);
 
     const openConversationIdRef = useRef(null);
     const bottomRef = useRef(null);
     const scrollRef = useRef(null);
-    // Gate auto-scroll: true on open/new message, false when prepending older.
-    const shouldScrollToBottom = useRef(true);
-    // Always-fresh copy of my id, so the WebSocket callback (created once at
-    // mount) never reads a stale/undefined value.
-    const currentUserIdRef = useRef(null);
 
-    // Whether THIS browser window is focused right now. We only send read
-    // receipts when focused — having the chat open in a background window
-    // (e.g. two windows side by side while testing) must NOT mark messages read.
+    const shouldScrollToBottom = useRef(true);
+
+    const currentUserIdRef = useRef(null);
+    const contactsRef = useRef([]);
+    const extraChatsRef = useRef([]);
+    const loadPartnersRef = useRef(null);
+
     const windowFocusedRef = useRef(
         typeof document === "undefined" ? true : document.hasFocus()
     );
-    // If a message arrives (or a chat is opened) while this window is NOT
-    // focused, we remember the conversation here and send the read receipt the
-    // moment the window regains focus — never before.
+
     const pendingReadRef = useRef(null);
 
-    // Hidden file input for the attachment (paperclip) button.
     const fileInputRef = useRef(null);
 
-    // id -> bubble DOM node, so tapping a reply quote can scroll to the original.
     const messageRefs = useRef({});
 
-    // Outbound-typing bookkeeping (refs, not state — they must never re-render).
-    const lastTypingSentRef = useRef(0);       // when we last sent "typing: true"
-    const typingIdleTimerRef = useRef(null);   // fires "typing: false" after a pause
-    // Holds the per-user auto-expire timers for RECEIVED typing, so we can clear
-    // them on unmount and avoid leaks.
+    const lastTypingSentRef = useRef(0);
+    const typingIdleTimerRef = useRef(null);
+
     const typingExpiryTimersRef = useRef({});
 
-    // Keep the id ref in sync with the logged-in user.
     useEffect(() => {
         currentUserIdRef.current = currentUserId;
     }, [currentUserId]);
 
-    // Persist the selected chat so a reload restores it. Also tell the socket
-    // provider which conversation is open, so it can suppress the toast for it.
+    useEffect(() => {
+        contactsRef.current = contacts;
+    }, [contacts]);
+
+    useEffect(() => {
+        extraChatsRef.current = extraChats;
+    }, [extraChats]);
+
+    useEffect(() => {
+        loadPartnersRef.current = loadPartners;
+    });
+
     useEffect(() => {
         setOpenConversation(openConversationIdRef.current);
         if (!selected) {
@@ -372,8 +337,10 @@ export default function ChatPage() {
         }
     }, [selected, setOpenConversation]);
 
-    // Re-render every minute so "last seen ..." stays current (e.g. rolls over
-    // to "yesterday") even if no new presence update arrives.
+    useEffect(() => {
+        return () => setOpenConversation(null);
+    }, [setOpenConversation]);
+
     useEffect(() => {
         const timer = setInterval(() => setNowTick((n) => n + 1), 60000);
         return () => clearInterval(timer);
@@ -382,6 +349,8 @@ export default function ChatPage() {
     useEffect(() => {
         const init = async () => {
             const [loadedContacts, loadedGroups] = await Promise.all([loadContacts(), loadGroups()]);
+            contactsRef.current = loadedContacts;
+            loadPartners();
 
             const saved = sessionStorage.getItem("pulse_selected");
             if (saved) {
@@ -395,19 +364,16 @@ export default function ChatPage() {
                         if (group) openGroup(group);
                     }
                 } catch {
-                    /* ignore bad data */
+
                 }
             }
         };
         init();
 
-        // The socket itself lives in SocketContext (app-wide). Here we just
-        // register the chat-page-specific listeners and clean them up on unmount.
         const unsubscribers = [
             addListener("message", (message) => {
                 const mine = message.senderId === currentUserIdRef.current;
 
-                // My OWN echoed message: just show it, never acknowledge it.
                 if (mine) {
                     if (message.conversationId === openConversationIdRef.current) {
                         shouldScrollToBottom.current = true;
@@ -416,34 +382,40 @@ export default function ChatPage() {
                     return;
                 }
 
-                // Someone else sent this. A new message means they're no longer
-                // "typing" — clear any indicator we were showing for them.
                 clearTyping(message.conversationId, message.senderId);
+
+                const isDirect = message.conversationId && message.conversationId.startsWith("dm:");
+                if (isDirect) {
+                    const known =
+                        contactsRef.current.some((c) => c.userId === message.senderId) ||
+                        extraChatsRef.current.some((e) => e.userId === message.senderId);
+                    if (!known && loadPartnersRef.current) {
+                        loadPartnersRef.current();
+                    }
+                }
 
                 if (message.conversationId === openConversationIdRef.current) {
                     shouldScrollToBottom.current = true;
                     setMessages((previous) => [...previous, message]);
-                    // Only mark READ if the user is genuinely viewing this chat:
-                    // the window is visible AND focused. Otherwise just delivered,
-                    // and defer the read until they actually come back to it.
+
                     const trulyViewing =
                         typeof document !== "undefined" &&
                         document.visibilityState === "visible" &&
                         windowFocusedRef.current;
                     if (trulyViewing) {
                         sendRead(message.conversationId);
-                        clearConversation(message.conversationId); // keep badge at 0 while viewing
+                        clearConversation(message.conversationId);
                     } else {
                         sendDelivered(message.conversationId);
                         pendingReadRef.current = message.conversationId;
                     }
                 } else {
-                    sendDelivered(message.conversationId); // arrived, chat not open
+                    sendDelivered(message.conversationId);
                 }
             }),
 
             addListener("status", (update) => {
-                // A tick advanced on one of MY messages — update just that bubble.
+
                 setMessages((previous) =>
                     previous.map((m) =>
                         m.id === update.messageId
@@ -496,12 +468,20 @@ export default function ChatPage() {
                     )
                 );
             }),
+
+            addListener("groupAdded", (group) => {
+                setGroups((previous) => {
+                    const alreadyListed = previous.some((g) => g.id === group.id);
+                    if (alreadyListed) return previous;
+                    return [group, ...previous];
+                });
+            }),
         ];
 
         return () => {
-            // Remove our listeners (the socket itself stays alive in the provider).
+
             unsubscribers.forEach((off) => off());
-            // Clear any pending typing timers so they don't fire after unmount.
+
             if (typingIdleTimerRef.current) clearTimeout(typingIdleTimerRef.current);
             Object.values(typingExpiryTimersRef.current).forEach(clearTimeout);
         };
@@ -514,15 +494,13 @@ export default function ChatPage() {
         }
     }, [messages]);
 
-    // Track whether this window is focused. On regaining focus, if the open
-    // chat had a message arrive while we were away, send its read receipt now.
     useEffect(() => {
         const onFocus = () => {
             windowFocusedRef.current = true;
             if (pendingReadRef.current) {
                 const convId = pendingReadRef.current;
                 pendingReadRef.current = null;
-                // Only mark read if that conversation is still the open one.
+
                 if (convId === openConversationIdRef.current) {
                     sendRead(convId);
                 }
@@ -539,9 +517,6 @@ export default function ChatPage() {
         };
     }, []);
 
-    // Send a read receipt only if this window is focused; otherwise defer it
-    // until focus returns (WhatsApp behaviour — an open-but-background chat
-    // does not mark messages read).
     const markReadIfFocused = (conversationId) => {
         if (windowFocusedRef.current) {
             sendRead(conversationId);
@@ -550,9 +525,6 @@ export default function ChatPage() {
         }
     };
 
-    // Close the React/Reply menu and emoji picker on any click outside of them.
-    // The chevron, menu, and picker stop propagation, so their own clicks don't
-    // trigger this; a click anywhere else dismisses them.
     useEffect(() => {
         if (menuFor === null && emojiPickerFor === null) return;
         const onDocClick = () => {
@@ -563,14 +535,9 @@ export default function ChatPage() {
         return () => document.removeEventListener("click", onDocClick);
     }, [menuFor, emojiPickerFor]);
 
-    // ---- received typing: record + auto-expire ----
-
-    // Record that `userId` is typing in `conversationId`, and (re)arm a timer
-    // that clears them after TYPING_EXPIRE_MS if no fresh event arrives.
     const markTyping = (conversationId, userId) => {
         const key = `${conversationId}:${userId}`;
 
-        // Reset any existing expiry timer for this person.
         if (typingExpiryTimersRef.current[key]) {
             clearTimeout(typingExpiryTimersRef.current[key]);
         }
@@ -580,12 +547,11 @@ export default function ChatPage() {
 
         setTyping((previous) => {
             const forConvo = previous[conversationId] || {};
-            if (forConvo[userId]) return previous; // already showing; nothing to change
+            if (forConvo[userId]) return previous;
             return { ...previous, [conversationId]: { ...forConvo, [userId]: true } };
         });
     };
 
-    // Remove `userId` from the typing set for `conversationId` (and kill its timer).
     const clearTyping = (conversationId, userId) => {
         const key = `${conversationId}:${userId}`;
         if (typingExpiryTimersRef.current[key]) {
@@ -601,29 +567,24 @@ export default function ChatPage() {
         });
     };
 
-    // ---- outbound typing: throttle + idle-stop ----
-
-    // Called on every keystroke in the composer.
     const handleTypingActivity = () => {
         const convId = openConversationIdRef.current;
         if (!convId) return;
 
         const now = Date.now();
-        // Send "typing: true" at most once per throttle window.
+
         if (now - lastTypingSentRef.current > TYPING_THROTTLE_MS) {
             sendTyping(convId, true);
             lastTypingSentRef.current = now;
         }
 
-        // (Re)start the idle timer: if no key for TYPING_IDLE_MS, send "stopped".
         if (typingIdleTimerRef.current) clearTimeout(typingIdleTimerRef.current);
         typingIdleTimerRef.current = setTimeout(() => {
             sendTyping(convId, false);
-            lastTypingSentRef.current = 0; // allow an immediate "true" next time
+            lastTypingSentRef.current = 0;
         }, TYPING_IDLE_MS);
     };
 
-    // Immediately tell the server I've stopped typing in the given conversation.
     const stopTypingNow = (conversationId) => {
         if (typingIdleTimerRef.current) {
             clearTimeout(typingIdleTimerRef.current);
@@ -638,9 +599,7 @@ export default function ChatPage() {
     const loadContacts = async () => {
         try {
             const response = await client.get("/api/v1/contacts");
-            // The contacts API returns each row as { contactId, name, alias, ... }.
-            // The chat UI identifies the other person by userId, so we map
-            // contactId -> userId (and show the alias as the name when one is set).
+
             const mapped = (response.data.data || []).map((c) => ({
                 userId: c.contactId,
                 name: c.alias || c.name,
@@ -654,7 +613,6 @@ export default function ChatPage() {
         }
     };
 
-    // Fetch presence for a batch of users (chat list / group members) in one call.
     const loadPresence = async (userIds) => {
         if (!userIds || userIds.length === 0) return;
         try {
@@ -665,7 +623,7 @@ export default function ChatPage() {
             });
             setPresence((previous) => ({ ...previous, ...map }));
         } catch {
-            // Leave presence empty on failure.
+
         }
     };
 
@@ -676,6 +634,23 @@ export default function ChatPage() {
             return data;
         } catch {
             return [];
+        }
+    };
+
+    const loadPartners = async () => {
+        try {
+            const response = await client.get("/api/conversations/partners");
+            const partners = response.data.data || [];
+
+            const contactIds = new Set(contactsRef.current.map((c) => c.userId));
+            const extras = partners
+                .filter((p) => !contactIds.has(p.userId))
+                .map((p) => ({ userId: p.userId, name: p.phone || "Unknown", avatarUrl: p.avatarUrl }));
+
+            setExtraChats(extras);
+            loadPresence(extras.map((e) => e.userId));
+        } catch {
+            // leave the non-contact chats empty on failure
         }
     };
 
@@ -703,9 +678,9 @@ export default function ChatPage() {
 
     const openDirect = async (contact) => {
         const convId = dmConversationId(currentUserId, contact.userId);
-        // Leaving the previous chat: stop any typing signal there.
+
         stopTypingNow(openConversationIdRef.current);
-        setReplyingTo(null); // don't carry a reply draft into another chat
+        setReplyingTo(null);
         setEditingMessage(null);
         setSelected({ type: "dm", userId: contact.userId, name: contact.name });
         openConversationIdRef.current = convId;
@@ -713,7 +688,6 @@ export default function ChatPage() {
         setHeaderMenuOpen(false);
         setMemberNames({});
 
-        // Load whether I've blocked this contact (for the header menu label).
         setIsBlocked(false);
         getBlockStatus(contact.userId)
             .then((r) => setIsBlocked(!!r.blocked))
@@ -730,24 +704,22 @@ export default function ChatPage() {
             setHasMore(false);
         }
 
-        // Opening a chat means I've read everything in it.
         markReadIfFocused(convId);
-        clearConversation(convId); // zero its unread badge
+        clearConversation(convId);
 
-        // Refresh this person's presence for the header.
         try {
             const res = await client.get(`/api/presence/${contact.userId}`);
             setPresence((previous) => ({ ...previous, [contact.userId]: res.data.data }));
         } catch {
-            // Keep whatever we already have.
+
         }
     };
 
     const openGroup = async (group) => {
         const convId = groupConversationId(group.id);
-        // Leaving the previous chat: stop any typing signal there.
+
         stopTypingNow(openConversationIdRef.current);
-        setReplyingTo(null); // don't carry a reply draft into another chat
+        setReplyingTo(null);
         setEditingMessage(null);
         setSelected({ type: "group", ...group });
         openConversationIdRef.current = convId;
@@ -768,7 +740,6 @@ export default function ChatPage() {
             });
             setMemberNames(names);
 
-            // Presence for the members, so the header can show "N online".
             loadPresence(members.map((member) => member.userId));
         } catch {
             setMessages([]);
@@ -776,14 +747,10 @@ export default function ChatPage() {
             setMemberNames({});
         }
 
-        // Opening the group means I've read everything in it.
         markReadIfFocused(convId);
-        clearConversation(convId); // zero its unread badge
+        clearConversation(convId);
     };
 
-    // ---- replies ----
-
-    // Start replying to a message: capture a small snapshot for the quote bar.
     const startReply = (message) => {
         setReplyingTo({
             id: message.id,
@@ -799,10 +766,9 @@ export default function ChatPage() {
 
     const cancelReply = () => setReplyingTo(null);
 
-    // Scroll to and briefly highlight the original message a reply points at.
     const jumpToMessage = (messageId) => {
         const node = messageRefs.current[messageId];
-        if (!node) return; // original not loaded (e.g. far up history)
+        if (!node) return;
         node.scrollIntoView({ behavior: "smooth", block: "center" });
         node.style.transition = "background 0.4s";
         const original = node.style.background;
@@ -812,9 +778,6 @@ export default function ChatPage() {
         }, 800);
     };
 
-    // ---- reactions ----
-
-    // Tapping an existing pill: remove mine if it's mine, else react with it.
     const toggleReaction = async (messageId, emoji, mine) => {
         try {
             if (mine) {
@@ -825,12 +788,9 @@ export default function ChatPage() {
         } catch (error) {
             console.error("Reaction failed:", error);
         }
-        // The updated list arrives via the /user/queue/reactions broadcast.
+
     };
 
-    // Picking from the quick-picker popover.
-    // Load older messages on scroll-up. Saves scrollHeight before prepending,
-    // then restores the offset after the DOM updates so the view doesn't jump.
     const loadOlderMessages = async () => {
         if (!hasMore || loadingMore || messages.length === 0) return;
         const container = scrollRef.current;
@@ -857,7 +817,7 @@ export default function ChatPage() {
                 });
             }
         } catch {
-            /* silent */
+
         } finally {
             setLoadingMore(false);
         }
@@ -872,9 +832,6 @@ export default function ChatPage() {
         }
     };
 
-    // ---- delete ----
-
-    // Delete for me: hide locally right away, then tell the server.
     const handleDeleteForMe = async (messageId) => {
         setMenuFor(null);
         setMessages((prev) => prev.filter((m) => m.id !== messageId));
@@ -885,8 +842,6 @@ export default function ChatPage() {
         }
     };
 
-    // Delete for everyone: the server broadcasts back, which flips the bubble to
-    // "deleted" for all (including me) via the onMessageDeleted handler.
     const handleDeleteForEveryone = async (messageId) => {
         setMenuFor(null);
         try {
@@ -897,26 +852,21 @@ export default function ChatPage() {
         }
     };
 
-    // Can the current user still delete THIS message for everyone?
-    // Sender only, within 1 hour, and not already deleted.
     const canDeleteForEveryone = (message) => {
         if (message.senderId !== currentUserId) return false;
         if (message.deleted) return false;
         const ageMs = Date.now() - new Date(message.createdAt).getTime();
-        return ageMs <= 60 * 60 * 1000; // 1 hour
+        return ageMs <= 60 * 60 * 1000;
     };
 
-    // Can the current user edit THIS message? Sender, own TEXT message, within
-    // 30 minutes. Read status does not matter (WhatsApp-style).
     const canEdit = (message) => {
         if (message.senderId !== currentUserId) return false;
         if (message.deleted) return false;
         if (message.type && message.type !== "TEXT") return false;
         const ageMs = Date.now() - new Date(message.createdAt).getTime();
-        return ageMs <= 30 * 60 * 1000; // 30 minutes
+        return ageMs <= 30 * 60 * 1000;
     };
 
-    // Start editing: put the composer into edit mode, pre-filled with the text.
     const startEdit = (message) => {
         setMenuFor(null);
         setReplyingTo(null);
@@ -935,10 +885,9 @@ export default function ChatPage() {
             return;
         }
 
-        // Edit mode: save the edit instead of sending a new message.
         if (editingMessage) {
             const id = editingMessage.id;
-            // optimistic update; the broadcast will confirm
+
             setMessages((prev) =>
                 prev.map((m) => (m.id === id ? { ...m, content: text, edited: true } : m))
             );
@@ -959,24 +908,22 @@ export default function ChatPage() {
             sendGroupMessage(selected.id, text, "TEXT", null, replyToId);
         }
         setDraft("");
-        setReplyingTo(null); // reply consumed
-        // Sending a message means I've stopped typing.
+        setReplyingTo(null);
+
         stopTypingNow(openConversationIdRef.current);
     };
 
-    // Called when the user picks a file from the file picker.
     const handleFileSelected = async (event) => {
         const file = event.target.files[0];
         if (!file || !selected) return;
 
-        // Reset so picking the same file again still fires onChange.
         event.target.value = "";
 
-        const messageType = getMessageType(file); // "IMAGE", "VIDEO", "AUDIO", or "FILE"
+        const messageType = getMessageType(file);
 
         setIsUploading(true);
         try {
-            const mediaUrl = await uploadMedia(file); // upload to server, get back URL
+            const mediaUrl = await uploadMedia(file);
 
             const replyToId = replyingTo ? replyingTo.id : null;
 
@@ -985,7 +932,7 @@ export default function ChatPage() {
             } else {
                 sendGroupMessage(selected.id, "", messageType, mediaUrl, replyToId);
             }
-            setReplyingTo(null); // reply consumed
+            setReplyingTo(null);
         } catch (error) {
             console.error("Media upload failed:", error);
             alert("Upload failed. Please try again.");
@@ -993,7 +940,6 @@ export default function ChatPage() {
             setIsUploading(false);
         }
 
-        // Attaching a file means I've stopped typing.
         stopTypingNow(openConversationIdRef.current);
     };
 
@@ -1011,7 +957,8 @@ export default function ChatPage() {
         setShowMembers(false);
     };
 
-    // The ids of people typing in the currently-open conversation.
+    const chatList = [...contacts, ...extraChats];
+
     const typingHere = selected
         ? Object.keys(typing[openConversationIdRef.current] || {}).map(Number)
         : [];
@@ -1046,7 +993,14 @@ export default function ChatPage() {
                             onClick={() => openGroup(group)}
                         >
                         <span style={styles.itemRow}>
-                            <span># {group.name}</span>
+                            <span style={styles.itemLeft}>
+                                {group.avatarUrl ? (
+                                    <img src={group.avatarUrl} alt="" style={styles.itemAvatar} />
+                                ) : (
+                                    <span style={styles.itemAvatarFallback}>#</span>
+                                )}
+                                <span style={styles.itemName}>{group.name}</span>
+                            </span>
                             {unread > 0 && <span style={styles.unreadBadge}>{unread}</span>}
                         </span>
                         </button>
@@ -1054,8 +1008,8 @@ export default function ChatPage() {
                 })}
 
                 <p style={styles.sectionLabel}>Chats</p>
-                {contacts.length === 0 && <p style={styles.empty}>No contacts yet.</p>}
-                {contacts.map((contact) => {
+                {chatList.length === 0 && <p style={styles.empty}>No contacts yet.</p>}
+                {chatList.map((contact) => {
                     const cConvId = dmConversationId(currentUserId, contact.userId);
                     const unread = unreadPerConversation[cConvId] || 0;
                     return (
@@ -1070,7 +1024,16 @@ export default function ChatPage() {
                             onClick={() => openDirect(contact)}
                         >
                         <span style={styles.itemRow}>
-                            <span>{contact.name || "Unknown"}</span>
+                            <span style={styles.itemLeft}>
+                                {contact.avatarUrl ? (
+                                    <img src={contact.avatarUrl} alt="" style={styles.itemAvatar} />
+                                ) : (
+                                    <span style={styles.itemAvatarFallback}>
+                                        {(contact.name || "?").charAt(0).toUpperCase()}
+                                    </span>
+                                )}
+                                <span style={styles.itemName}>{contact.name || "Unknown"}</span>
+                            </span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
                                 {unread > 0 && <span style={styles.unreadBadge}>{unread}</span>}
                                 <span
@@ -1107,10 +1070,26 @@ export default function ChatPage() {
                                         );
                                     })()
                                 ) : (
-                                    <div style={styles.headerAvatarFallback}>#</div>
+                                    selected.avatarUrl ? (
+                                        <img src={selected.avatarUrl} alt="" style={styles.headerAvatar} />
+                                    ) : (
+                                        <div style={styles.headerAvatarFallback}>#</div>
+                                    )
                                 )}
                                 <div style={styles.headerInfo}>
-                                    <span style={styles.headerName}>{selected.name}</span>
+                                    <span
+                                        style={{
+                                            ...styles.headerName,
+                                            ...(selected.type === "dm" ? styles.clickableName : {}),
+                                        }}
+                                        onClick={() => {
+                                            if (selected.type === "dm") {
+                                                navigate(`/users/${selected.userId}/profile`);
+                                            }
+                                        }}
+                                    >
+                                        {selected.name}
+                                    </span>
                                     <span style={styles.presenceLine}>
                                         {headerStatusLine(
                                             selected,
@@ -1205,7 +1184,7 @@ export default function ChatPage() {
                                                 </div>
                                             )}
 
-                                            {/* Status reply preview — shown above the reply text */}
+                                            {}
                                             {message.statusPreview && (
                                                 <div style={styles.statusPreview}>
                                                     {message.statusPreview.mediaUrl && (
@@ -1353,6 +1332,7 @@ export default function ChatPage() {
                                             onToggle={(emoji, isMine) =>
                                                 toggleReaction(message.id, emoji, isMine)
                                             }
+                                            alignRight={mine}
                                         />
                                     </div>
                                 );
@@ -1456,6 +1436,16 @@ export default function ChatPage() {
                     currentUserId={currentUserId}
                     onClose={() => setShowMembers(false)}
                     onLeft={handleLeftGroup}
+                    onUpdated={(updatedGroup) => {
+                        setGroups((prev) =>
+                            prev.map((g) => (g.id === updatedGroup.id ? { ...g, ...updatedGroup } : g))
+                        );
+                        setSelected((prev) =>
+                            prev && prev.type === "group" && prev.id === updatedGroup.id
+                                ? { ...prev, ...updatedGroup }
+                                : prev
+                        );
+                    }}
                 />
             )}
 
@@ -1537,6 +1527,22 @@ const styles = {
     },
     itemActive: { background: "#2a3942" },
     itemRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" },
+    itemLeft: { display: "flex", alignItems: "center", gap: "10px", minWidth: 0 },
+    itemName: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+    itemAvatar: { width: "34px", height: "34px", borderRadius: "50%", objectFit: "cover", flex: "0 0 auto" },
+    itemAvatarFallback: {
+        width: "34px",
+        height: "34px",
+        borderRadius: "50%",
+        background: "#2a3942",
+        color: "#e9edef",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "14px",
+        fontWeight: 600,
+        flex: "0 0 auto",
+    },
     dot: {
         width: "9px",
         height: "9px",
@@ -1577,6 +1583,7 @@ const styles = {
     headerAvatar: { width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover", flex: "0 0 auto" },
     headerAvatarFallback: { width: "38px", height: "38px", borderRadius: "50%", background: "#2a3942", color: "#e9edef", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: 600, flex: "0 0 auto" },
     headerName: { fontWeight: 600, fontSize: "15px" },
+    clickableName: { cursor: "pointer" },
     headerMenu: {
         position: "absolute",
         top: "36px",
@@ -1679,7 +1686,7 @@ const styles = {
     editedLabel: { fontSize: "10.5px", color: "#9fc1b8", fontStyle: "italic", marginRight: "2px" },
 
     // hover chevron at the bubble's top corner
-    // hover chevron in the bubble's top-right gutter (never over text)
+
     chevron: {
         position: "absolute",
         top: "3px",
@@ -1698,8 +1705,6 @@ const styles = {
     chevronMine: {},
     chevronTheirs: {},
 
-    // the small React / Reply menu — drops DOWN from just under the chevron,
-    // pinned to the bubble's top-right corner (beside where you clicked).
     actionMenu: {
         position: "absolute",
         top: "24px",
@@ -1734,8 +1739,7 @@ const styles = {
     },
     deletedText: { fontStyle: "italic", color: "#8696a0", fontSize: "13.5px" },
 
-    // reactions: pill row UNDER the bubble
-    pillRow: { display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "3px" },
+    pillRow: { display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "3px", alignSelf: "stretch" },
     pill: {
         display: "inline-flex",
         alignItems: "center",
@@ -1752,7 +1756,6 @@ const styles = {
     pillMine: { border: "1px solid #00a884", background: "#0c3a30" },
     pillCount: { fontSize: "11px", color: "#c5cdd3" },
 
-    // reactions: the quick-pick popover — drops DOWN from the chevron corner
     emojiPopover: {
         position: "absolute",
         left: "0",
@@ -1776,7 +1779,6 @@ const styles = {
         borderRadius: "6px",
     },
 
-    // reply: the quote block rendered INSIDE a reply bubble
     quoteBlock: {
         borderLeft: "3px solid #53bdeb",
         background: "rgba(255,255,255,0.06)",
@@ -1797,7 +1799,6 @@ const styles = {
     },
     quoteDeleted: { fontStyle: "italic", color: "#8696a0" },
 
-    // reply: the preview bar above the composer
     composerWrap: { borderTop: "1px solid #222d34", background: "#111b21" },
     replyBar: {
         display: "flex",
@@ -1832,7 +1833,6 @@ const styles = {
         padding: "4px",
     },
 
-    // media styles
     mediaImage: {
         maxWidth: "240px",
         maxHeight: "240px",

@@ -4,7 +4,6 @@ public final class ConversationUtil {
 
     private ConversationUtil() { }
 
-
     public static String dmConversationId(Long userIdA, Long userIdB) {
         long smaller = Math.min(userIdA, userIdB);
         long larger  = Math.max(userIdA, userIdB);
@@ -14,7 +13,6 @@ public final class ConversationUtil {
     public static String groupConversationId(Long groupId) {
         return "group:" + groupId;
     }
-
 
     public static boolean isGroup(String conversationId) {
         return conversationId != null && conversationId.startsWith("group:");
@@ -29,7 +27,7 @@ public final class ConversationUtil {
     }
 
     public static long[] dmParticipants(String conversationId) {
-        String[] parts = conversationId.split(":");   // ["dm", "2", "7"]
+        String[] parts = conversationId.split(":");
         return new long[] { Long.parseLong(parts[1]), Long.parseLong(parts[2]) };
     }
 }

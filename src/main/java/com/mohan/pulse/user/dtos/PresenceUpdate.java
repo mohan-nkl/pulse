@@ -5,7 +5,6 @@ import lombok.Getter;
 
 import java.time.Instant;
 
-
 @Getter
 @AllArgsConstructor
 public class PresenceUpdate {

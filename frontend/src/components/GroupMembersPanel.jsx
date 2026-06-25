@@ -1,17 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     getGroupMembers,
     addGroupMembers,
     removeGroupMember,
     makeGroupAdmin,
+    dismissGroupAdmin,
     leaveGroup,
+    updateGroup,
+    uploadGroupAvatar,
 } from "../api/groupApi";
 
-export default function GroupMembersPanel({ group, contacts, currentUserId, onClose, onLeft }) {
+export default function GroupMembersPanel({ group, contacts, currentUserId, onClose, onLeft, onUpdated }) {
     const [members, setMembers] = useState([]);
     const [adding, setAdding] = useState(false);
     const [selectedToAdd, setSelectedToAdd] = useState([]);
     const [error, setError] = useState("");
+
+    const [name, setName] = useState(group.name);
+    const [savingName, setSavingName] = useState(false);
+    const [savingAvatar, setSavingAvatar] = useState(false);
+    const avatarInputRef = useRef(null);
 
     const isAdmin = group.myRole === "ADMIN";
 
@@ -19,6 +27,7 @@ export default function GroupMembersPanel({ group, contacts, currentUserId, onCl
         loadMembers();
         setAdding(false);
         setSelectedToAdd([]);
+        setName(group.name);
     }, [group.id]);
 
     const loadMembers = async () => {
@@ -66,12 +75,51 @@ export default function GroupMembersPanel({ group, contacts, currentUserId, onCl
         }
     };
 
+    const handleDemote = async (userId) => {
+        try {
+            setMembers(await dismissGroupAdmin(group.id, userId));
+        } catch (err) {
+            setError(err.response?.data?.message || "Could not dismiss admin.");
+        }
+    };
+
     const handleLeave = async () => {
         try {
             await leaveGroup(group.id);
             onLeft();
         } catch (err) {
             setError(err.response?.data?.message || "Could not leave the group.");
+        }
+    };
+
+    const handleSaveName = async () => {
+        const trimmed = name.trim();
+        if (!trimmed || savingName) return;
+        setSavingName(true);
+        try {
+            const updated = await updateGroup(group.id, trimmed);
+            onUpdated?.(updated);
+            setError("");
+        } catch (err) {
+            setError(err.response?.data?.message || "Could not rename the group.");
+        } finally {
+            setSavingName(false);
+        }
+    };
+
+    const handleAvatar = async (event) => {
+        const file = event.target.files[0];
+        event.target.value = "";
+        if (!file) return;
+        setSavingAvatar(true);
+        try {
+            const updated = await uploadGroupAvatar(group.id, file);
+            onUpdated?.(updated);
+            setError("");
+        } catch (err) {
+            setError(err.response?.data?.message || "Could not update the group photo.");
+        } finally {
+            setSavingAvatar(false);
         }
     };
 
@@ -83,6 +131,43 @@ export default function GroupMembersPanel({ group, contacts, currentUserId, onCl
             </div>
 
             {error && <div style={styles.error}>{error}</div>}
+
+            {isAdmin && (
+                <div style={styles.editSection}>
+                    <div style={styles.editAvatarRow}>
+                        {group.avatarUrl ? (
+                            <img src={group.avatarUrl} alt="" style={styles.editAvatar} />
+                        ) : (
+                            <div style={styles.editAvatarFallback}>#</div>
+                        )}
+                        <button
+                            style={styles.smallBtn}
+                            onClick={() => avatarInputRef.current.click()}
+                            disabled={savingAvatar}
+                        >
+                            {savingAvatar ? "Uploading…" : "Change photo"}
+                        </button>
+                        <input
+                            ref={avatarInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            style={{ display: "none" }}
+                            onChange={handleAvatar}
+                        />
+                    </div>
+                    <div style={styles.editNameRow}>
+                        <input
+                            style={styles.nameInput}
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Group name"
+                        />
+                        <button style={styles.create} onClick={handleSaveName} disabled={savingName}>
+                            {savingName ? "…" : "Save"}
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <div style={styles.members}>
                 {members.map((member) => {
@@ -96,15 +181,19 @@ export default function GroupMembersPanel({ group, contacts, currentUserId, onCl
 
                             {isAdmin && !isMe && (
                                 <span style={styles.memberActions}>
-                  {member.role !== "ADMIN" && (
-                      <button style={styles.smallBtn} onClick={() => handlePromote(member.userId)}>
-                          Make admin
-                      </button>
-                  )}
+                                    {member.role === "ADMIN" ? (
+                                        <button style={styles.smallBtn} onClick={() => handleDemote(member.userId)}>
+                                            Dismiss admin
+                                        </button>
+                                    ) : (
+                                        <button style={styles.smallBtn} onClick={() => handlePromote(member.userId)}>
+                                            Make admin
+                                        </button>
+                                    )}
                                     <button style={styles.removeBtn} onClick={() => handleRemove(member.userId)}>
-                    Remove
-                  </button>
-                </span>
+                                        Remove
+                                    </button>
+                                </span>
                             )}
                         </div>
                     );
@@ -169,6 +258,41 @@ const styles = {
     header: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" },
     title: { fontSize: "16px", fontWeight: 600 },
     close: { background: "transparent", border: "none", color: "#8696a0", fontSize: "16px", cursor: "pointer" },
+    editSection: {
+        display: "flex",
+        flexDirection: "column",
+        gap: "8px",
+        padding: "10px",
+        marginBottom: "12px",
+        borderRadius: "6px",
+        background: "#202c33",
+    },
+    editAvatarRow: { display: "flex", alignItems: "center", gap: "10px" },
+    editAvatar: { width: "44px", height: "44px", borderRadius: "50%", objectFit: "cover", flex: "0 0 auto" },
+    editAvatarFallback: {
+        width: "44px",
+        height: "44px",
+        borderRadius: "50%",
+        background: "#2a3942",
+        color: "#e9edef",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "18px",
+        flex: "0 0 auto",
+    },
+    editNameRow: { display: "flex", gap: "8px" },
+    nameInput: {
+        flex: 1,
+        minWidth: 0,
+        padding: "7px 10px",
+        border: "1px solid #2a3942",
+        borderRadius: "6px",
+        background: "#2a3942",
+        color: "#e9edef",
+        outline: "none",
+        fontSize: "14px",
+    },
     members: { display: "flex", flexDirection: "column", gap: "6px" },
     memberRow: {
         display: "flex",

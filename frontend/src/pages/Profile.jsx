@@ -83,7 +83,7 @@ export default function Profile() {
                 {error && <div style={styles.error}>{error}</div>}
                 {success && <div style={styles.successBox}>{success}</div>}
 
-                {/* Avatar */}
+                {}
                 <div style={styles.avatarWrapper}>
                     <img
                         src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || "U")}&size=96&background=00a884&color=fff`}
@@ -106,7 +106,7 @@ export default function Profile() {
                     />
                 </div>
 
-                {/* ── User Details (read-only view) ── */}
+                {}
                 {!editMode && (
                     <div style={styles.detailsSection}>
                         <div style={styles.detailRow}>
@@ -136,7 +136,7 @@ export default function Profile() {
                     </div>
                 )}
 
-                {/* ── Edit Form ── */}
+                {}
                 {editMode && (
                     <form onSubmit={handleSave} style={styles.detailsSection}>
                         <label style={styles.label}>Name</label>

@@ -5,7 +5,6 @@ import lombok.Getter;
 
 import java.util.List;
 
-
 @Getter
 @AllArgsConstructor
 public class MessageInfoResponse {
@@ -14,5 +13,5 @@ public class MessageInfoResponse {
     private int totalRecipients;
     private int deliveredCount;
     private int readCount;
-    private List<RecipientStatusEntry> recipients;  // one entry per person
+    private List<RecipientStatusEntry> recipients;
 }

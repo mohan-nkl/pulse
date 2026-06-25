@@ -7,17 +7,15 @@ export default function Signup() {
     const { signup } = useAuth();
     const navigate = useNavigate();
 
-    // One piece of state per input field.
     const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
     const [password, setPassword] = useState("");
 
-    // An error message to show the user, and a flag to disable the button while submitting.
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
     const handleSubmit = async (event) => {
-        // Stop the browser's default "reload the page" behaviour on submit.
+
         event.preventDefault();
 
         setError("");
@@ -25,10 +23,10 @@ export default function Signup() {
 
         try {
             await signup({ name, phone, password });
-            // Signup succeeded and we're now logged in — go to the home page.
+
             navigate("/");
         } catch (err) {
-            // Our backend puts the reason inside ApiResponse.message.
+
             const message =
                 err.response?.data?.message || "Something went wrong. Please try again.";
             setError(message);
@@ -42,7 +40,7 @@ export default function Signup() {
             <form style={styles.form} onSubmit={handleSubmit}>
                 <h1 style={styles.title}>Create your Pulse account</h1>
 
-                {/* The error banner only appears when there is an error. */}
+                {}
                 {error && <div style={styles.error}>{error}</div>}
 
                 <label style={styles.label}>Name</label>
@@ -84,8 +82,6 @@ export default function Signup() {
     );
 }
 
-// Simple inline styles, kept in this file so the whole page is self-contained.
-// We can move these to a CSS file later if it grows.
 const styles = {
     container: {
         display: "flex",

@@ -69,7 +69,7 @@ export default function ViewProfile() {
 
                 <button style={styles.backBtn} className="pulse-back" onClick={() => navigate(-1)}>← Back</button>
 
-                {/* Avatar + Name */}
+                {}
                 <div style={styles.avatarWrapper}>
                     <img
                         src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || "U")}&size=96&background=00a884&color=fff`}
@@ -78,13 +78,13 @@ export default function ViewProfile() {
                     />
                     <h2 style={styles.name}>{profile.name || "Unknown"}</h2>
 
-                    {/* Last seen */}
+                    {}
                     <span style={styles.lastSeen}>
                         Last seen {formatLastSeen(profile.lastSeen)}
                     </span>
                 </div>
 
-                {/* Details */}
+                {}
                 <div style={styles.detailsSection}>
                     {profile.about && (
                         <div style={styles.detailRow}>
