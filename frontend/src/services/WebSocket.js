@@ -7,8 +7,6 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 let stompClient = null;
 
 export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onReaction, onNotification, onMessageDeleted, onMessageEdited) {
-    const token = getToken();
-
     // Idempotent: if a client already exists (StrictMode double-mount or a
     // re-entry into the chat), tear it down first so we never run two live
     // sockets delivering every message/notification twice.
@@ -18,8 +16,29 @@ export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onRe
     }
 
     stompClient = new Client({
-        webSocketFactory: () => new SockJS(`${BASE_URL}/ws?token=${token}`),
+        // Re-read the token FRESH on every (re)connect so reconnections always
+        // use a current token rather than one captured at first connect.
+        webSocketFactory: () => new SockJS(`${BASE_URL}/ws?token=${getToken()}`),
         reconnectDelay: 5000,
+
+        // Heartbeats keep the connection alive. Without them, proxies and
+        // browsers silently drop idle WebSockets after ~60s — which looks like
+        // "everything stops working after a while". 10s each way is safe.
+        heartbeatIncoming: 10000,
+        heartbeatOutgoing: 10000,
+
+        // Surface problems instead of dying silently. The client auto-reconnects
+        // (reconnectDelay), and onConnect re-subscribes every time, so recovery
+        // is automatic — these handlers just make failures visible.
+        onStompError: (frame) => {
+            console.error("STOMP error:", frame?.headers?.message, frame?.body);
+        },
+        onWebSocketClose: (evt) => {
+            console.warn("WebSocket closed; will attempt to reconnect.", evt?.reason || "");
+        },
+        onWebSocketError: (evt) => {
+            console.error("WebSocket error.", evt);
+        },
 
         onConnect: () => {
             stompClient.subscribe("/user/queue/messages", (frame) => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -14,6 +14,15 @@ export default function Login() {
     // An error message to show the user, and a flag to disable the button while submitting.
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
+
+    // Show a notice if the user was auto-logged-out for inactivity.
+    const [notice, setNotice] = useState("");
+    useEffect(() => {
+        if (sessionStorage.getItem("pulse_logout_reason") === "expired") {
+            setNotice("Your session expired due to inactivity. Please log in again.");
+            sessionStorage.removeItem("pulse_logout_reason");
+        }
+    }, []);
 
     const handleSubmit = async (event) => {
         // Stop the browser's default "reload the page" behaviour on submit.
@@ -40,6 +49,8 @@ export default function Login() {
         <div style={styles.container}>
             <form style={styles.form} onSubmit={handleSubmit}>
                 <h1 style={styles.title}>Log in to Pulse</h1>
+
+                {notice && <div style={styles.notice}>{notice}</div>}
 
                 {/* The error banner only appears when there is an error. */}
                 {error && <div style={styles.error}>{error}</div>}
@@ -105,6 +116,15 @@ const styles = {
         border: "none",
         borderRadius: "6px",
         cursor: "pointer",
+    },
+    notice: {
+        background: "#0b3d2e",
+        color: "#7ee2b8",
+        border: "1px solid #14543f",
+        padding: "10px",
+        borderRadius: "6px",
+        fontSize: "14px",
+        marginBottom: "8px",
     },
     error: {
         background: "#fdecea",
