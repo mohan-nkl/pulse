@@ -38,6 +38,7 @@ public class ConversationService {
     private final MessageRecipientStatusRepository recipientStatusRepository;
     private final DeletedMessageRepository deletedMessageRepository;
     private final com.mohan.pulse.storage.StorageService storageService;
+    private final com.mohan.pulse.block.BlockService blockService;
 
     // ── Direct message conversation (paginated) ───────────────────────────────
 
@@ -110,6 +111,12 @@ public class ConversationService {
                 .map(dm -> dm.getMessage().getId())
                 .collect(Collectors.toSet());
 
+        // Messages authored by anyone the current user has blocked are hidden
+        // from the current user — in DMs AND in shared groups. (One-directional:
+        // the blocker hides the blocked; the blocked still sees normally.)
+        Set<Long> blockedAuthorIds = new java.util.HashSet<>(
+                blockService.blockedIdsOf(currentUserId));
+
         Map<Long, MessageStatusUpdate> statusById =
                 messageStatusService.statusForMessages(messageIds);
         Map<Long, List<ReactionEntry>> reactionsById =
@@ -127,6 +134,7 @@ public class ConversationService {
 
         return messages.stream()
                 .filter(message -> !hiddenForMe.contains(message.getId())) // drop delete-for-me
+                .filter(message -> !blockedAuthorIds.contains(message.getSender().getId())) // drop blocked authors
                 .map(message -> {
                     MessageStatusUpdate s = statusById.get(message.getId());
                     ReplySummary reply = ReplySummary.from(message.getReplyTo());

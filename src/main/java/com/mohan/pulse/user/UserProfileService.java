@@ -18,6 +18,7 @@ public class UserProfileService {
 
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final com.mohan.pulse.block.BlockService blockService;
 
     private static final List<String> ALLOWED_TYPES = List.of("image/jpeg", "image/png", "image/webp");
     private static final long MAX_SIZE = 5 * 1024 * 1024;
@@ -28,6 +29,26 @@ public class UserProfileService {
 
     public UserProfileResponse getUserProfile(Long userId) {
         return toResponse(findById(userId));
+    }
+
+    /**
+     * Profile as seen by a specific viewer. If the profile owner has blocked the
+     * viewer, the viewer must not see the owner's avatar or last-seen.
+     */
+    public UserProfileResponse getUserProfileFor(Long viewerId, Long ownerId) {
+        User owner = findById(ownerId);
+        // Hide avatar + last-seen if there's a block in EITHER direction:
+        // the blocked can't see the blocker, and you don't see those you blocked.
+        boolean hidden = blockService.isBlockedBetween(viewerId, ownerId);
+
+        return UserProfileResponse.builder()
+                .id(owner.getId())
+                .name(owner.getName())
+                .about(owner.getAbout())
+                .avatarUrl(hidden ? null : storageService.presignedUrl(owner.getAvatarUrl()))
+                .lastSeen(hidden ? null : owner.getLastSeen())
+                .createdAt(owner.getCreatedAt())
+                .build();
     }
 
     public UserProfileResponse updateProfile(Long userId, UpdateProfileRequest request) {

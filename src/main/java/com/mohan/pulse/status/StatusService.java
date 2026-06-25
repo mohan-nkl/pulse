@@ -33,6 +33,7 @@ public class StatusService {
     private final ContactRepository    contactRepository;
     private final ChatService chatService;
     private final StorageService storageService;
+    private final com.mohan.pulse.block.BlockService blockService;
 
     private static final List<String> ALLOWED_IMAGE_TYPES =
             List.of("image/jpeg", "image/png", "image/webp", "image/gif");
@@ -105,8 +106,20 @@ public class StatusService {
 
         if (contactIds.isEmpty()) return List.of();
 
+        // Exclude anyone involved in a block with the viewer (either direction):
+        // you don't see the status of people you blocked, and people who blocked
+        // you don't show you theirs.
+        java.util.Set<Long> excluded = new java.util.HashSet<>();
+        excluded.addAll(blockService.blockedIdsOf(userId)); // I blocked them
+        excluded.addAll(blockService.blockersOf(userId));   // they blocked me
+        List<Long> visibleAuthorIds = contactIds.stream()
+                .filter(id -> !excluded.contains(id))
+                .collect(Collectors.toList());
+
+        if (visibleAuthorIds.isEmpty()) return List.of();
+
         return statusRepository
-                .findActiveByAuthorIds(contactIds, Instant.now())
+                .findActiveByAuthorIds(visibleAuthorIds, Instant.now())
                 .stream()
                 .map(s -> toResponse(s, userId))
                 .collect(Collectors.toList());

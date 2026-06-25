@@ -27,6 +27,7 @@ public class PresenceService {
 
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final com.mohan.pulse.block.BlockService blockService;
 
 
     @EventListener
@@ -81,6 +82,43 @@ public class PresenceService {
                 .map(User::getLastSeen)
                 .orElse(null);
         return new PresenceUpdate(userId, false, lastSeen);
+    }
+
+    /**
+     * Presence of {@code userId} as seen by {@code viewerId}. If {@code userId}
+     * has blocked the viewer, the viewer always sees them as offline with no
+     * last-seen.
+     */
+    @Transactional(readOnly = true)
+    public PresenceUpdate getPresenceFor(Long viewerId, Long userId) {
+        if (blockService.isBlockedBetween(viewerId, userId)) {
+            return new PresenceUpdate(userId, false, null);
+        }
+        return getPresence(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PresenceUpdate> getPresenceForViewer(Long viewerId, List<Long> userIds) {
+        // Anyone in a block with the viewer (either direction) is shown offline.
+        var hiddenIds = new java.util.HashSet<Long>();
+        hiddenIds.addAll(blockService.blockersOf(viewerId));   // they blocked me
+        hiddenIds.addAll(blockService.blockedIdsOf(viewerId)); // I blocked them
+
+        Map<Long, Instant> lastSeenById = new HashMap<>();
+        userRepository.findAllById(userIds)
+                .forEach(user -> lastSeenById.put(user.getId(), user.getLastSeen()));
+
+        return userIds.stream()
+                .distinct()
+                .map(id -> {
+                    if (hiddenIds.contains(id)) {
+                        return new PresenceUpdate(id, false, null);
+                    }
+                    return isOnline(id)
+                            ? new PresenceUpdate(id, true, null)
+                            : new PresenceUpdate(id, false, lastSeenById.get(id));
+                })
+                .toList();
     }
 
     @Transactional(readOnly = true)
