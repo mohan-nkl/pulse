@@ -5,6 +5,7 @@ import com.mohan.pulse.message.dtos.ConversationPartner;
 import com.mohan.pulse.message.dtos.PagedMessages;
 import com.mohan.pulse.common.SecurityUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -58,5 +59,25 @@ public class ConversationController {
     public ApiResponse<Map<String, Instant>> getConversationSummaries() {
         Long currentUserId = SecurityUtil.currentUserId();
         return ApiResponse.ok(conversationService.getConversationSummaries(currentUserId));
+    }
+
+    @GetMapping("/hidden")
+    public ApiResponse<List<String>> getHiddenConversations() {
+        Long currentUserId = SecurityUtil.currentUserId();
+        return ApiResponse.ok(conversationService.getHiddenConversations(currentUserId));
+    }
+
+    @DeleteMapping("/{otherUserId}")
+    public ApiResponse<Void> clearDirectConversation(@PathVariable Long otherUserId) {
+        Long currentUserId = SecurityUtil.currentUserId();
+        conversationService.clearDirectConversation(currentUserId, otherUserId);
+        return ApiResponse.ok("Conversation deleted.", null);
+    }
+
+    @DeleteMapping("/group/{groupId}")
+    public ApiResponse<Void> clearGroupConversation(@PathVariable Long groupId) {
+        Long currentUserId = SecurityUtil.currentUserId();
+        conversationService.clearGroupConversation(currentUserId, groupId);
+        return ApiResponse.ok("Conversation deleted.", null);
     }
 }

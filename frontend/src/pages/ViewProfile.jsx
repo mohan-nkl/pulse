@@ -140,7 +140,7 @@ const styles = {
     },
     center: {
         display: "flex", justifyContent: "center", alignItems: "center",
-        minHeight: "100vh", background: "#0b141a", color: "#e9edef",
+        minHeight: "100vh", background: "var(--c-bg)", color: "var(--c-text)",
     },
     container: {
         display: "flex",
@@ -150,7 +150,7 @@ const styles = {
         padding: "24px",
         boxSizing: "border-box",
         background:
-            "radial-gradient(1200px 500px at 50% -10%, rgba(0,168,132,0.10), transparent 60%), #0b141a",
+            "radial-gradient(1200px 500px at 50% -10%, rgba(0,168,132,0.10), transparent 60%), var(--c-bg)",
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     },
     card: {
@@ -159,11 +159,11 @@ const styles = {
         width: "360px",
         maxWidth: "100%",
         padding: "24px",
-        background: "#111b21",
-        border: "1px solid #1f2c33",
+        background: "var(--c-panel)",
+        border: "1px solid var(--c-border)",
         borderRadius: "18px",
         boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
-        color: "#e9edef",
+        color: "var(--c-text)",
     },
     backBtn: {
         background: "none",
@@ -194,7 +194,7 @@ const styles = {
     name: { fontSize: "21px", fontWeight: 600, margin: "6px 0 0" },
     lastSeen: {
         fontSize: "13px",
-        color: "#8696a0",
+        color: "var(--c-muted)",
     },
     detailsSection: { display: "flex", flexDirection: "column" },
     detailRow: {
@@ -202,7 +202,7 @@ const styles = {
         justifyContent: "space-between",
         alignItems: "center",
         padding: "13px 0",
-        borderBottom: "1px solid #1f2c33",
+        borderBottom: "1px solid var(--c-border)",
         gap: "12px",
     },
     detailRowLast: {
@@ -212,7 +212,7 @@ const styles = {
         padding: "13px 0",
         gap: "12px",
     },
-    detailLabel: { fontSize: "13px", color: "#8696a0" },
+    detailLabel: { fontSize: "13px", color: "var(--c-muted)" },
     detailValue: { fontSize: "14px", fontWeight: 500, textAlign: "right", maxWidth: "220px", wordBreak: "break-word" },
 };
 

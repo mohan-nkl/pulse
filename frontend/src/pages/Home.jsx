@@ -1,8 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 
 export default function Home() {
     const { user, logout } = useAuth();
+    const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
 
     const handleLogout = async () => {
@@ -96,6 +98,10 @@ export default function Home() {
                     </button>
                 </div>
 
+                <button className="pulse-theme" onClick={toggleTheme}>
+                    {theme === "dark" ? "☀️  Switch to light mode" : "🌙  Switch to dark mode"}
+                </button>
+
                 <button className="pulse-logout" onClick={handleLogout}>
                     Log out
                 </button>
@@ -129,16 +135,16 @@ const css = `
     box-sizing: border-box;
     background:
         radial-gradient(1200px 500px at 50% -10%, rgba(0,168,132,0.10), transparent 60%),
-        #0b141a;
-    color: #e9edef;
+        var(--c-bg);
+    color: var(--c-text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .pulse-card {
     width: 100%;
     max-width: 400px;
-    background: #111b21;
-    border: 1px solid #1f2c33;
+    background: var(--c-panel);
+    border: 1px solid var(--c-border);
     border-radius: 18px;
     padding: 36px 24px 24px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.45);
@@ -190,7 +196,7 @@ const css = `
 .pulse-sub {
     margin: 4px 0 0;
     font-size: 13px;
-    color: #8696a0;
+    color: var(--c-muted);
     letter-spacing: 0.3px;
 }
 
@@ -209,16 +215,16 @@ const css = `
     width: 100%;
     text-align: left;
     padding: 12px 14px;
-    border: 1px solid #1f2c33;
+    border: 1px solid var(--c-border);
     border-radius: 12px;
-    background: #16222a;
-    color: #e9edef;
+    background: var(--c-surface3);
+    color: var(--c-text);
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 .pulse-row:hover {
-    background: #1d2a32;
-    border-color: #2a3942;
+    background: var(--c-surface4);
+    border-color: var(--c-border2);
     transform: translateX(2px);
 }
 .pulse-row:focus-visible {
@@ -239,10 +245,10 @@ const css = `
 
 .pulse-row-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .pulse-row-title { font-size: 15px; font-weight: 600; }
-.pulse-row-desc { font-size: 12.5px; color: #8696a0; margin-top: 2px; }
+.pulse-row-desc { font-size: 12.5px; color: var(--c-muted); margin-top: 2px; }
 
-.pulse-chevron { color: #5b6b74; flex: 0 0 auto; transition: color 0.15s ease; }
-.pulse-row:hover .pulse-chevron { color: #8696a0; }
+.pulse-chevron { color: var(--c-muted2); flex: 0 0 auto; transition: color 0.15s ease; }
+.pulse-row:hover .pulse-chevron { color: var(--c-muted); }
 
 .pulse-logout {
     margin-top: 22px;
@@ -250,12 +256,25 @@ const css = `
     border: none;
     border-radius: 8px;
     background: transparent;
-    color: #8696a0;
+    color: var(--c-muted);
     font-size: 14px;
     cursor: pointer;
     transition: color 0.15s ease, background 0.15s ease;
 }
 .pulse-logout:hover { color: #f15c6d; background: rgba(241,92,109,0.10); }
+
+.pulse-theme {
+    margin-top: 14px;
+    padding: 9px 16px;
+    border: 1px solid var(--c-border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--c-muted);
+    font-size: 14px;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+.pulse-theme:hover { color: var(--c-text); background: var(--c-surface3); }
 
 .pulse-foot {
     display: flex;
@@ -263,7 +282,7 @@ const css = `
     gap: 7px;
     margin: 0;
     font-size: 13px;
-    color: #5b6b74;
+    color: var(--c-muted2);
     letter-spacing: 1px;
     text-transform: uppercase;
 }
