@@ -20,7 +20,7 @@ export default function HomeButton({ compact = false, style }) {
                 border: "none",
                 borderRadius: "9px",
                 background: hover ? "#06cf7f" : "#00a884",
-                color: "#0b141a",
+                color: "var(--c-bg)",
                 fontSize: "13.5px",
                 fontWeight: 600,
                 lineHeight: 1,

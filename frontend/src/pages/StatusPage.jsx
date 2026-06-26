@@ -43,7 +43,7 @@ function StatusMedia({ url, style }) {
 }
 
 function RingAvatar({ name, url, hasUnread, size = 46 }) {
-    const ring = hasUnread ? "#00a884" : "#3a4a54";
+    const ring = hasUnread ? "#00a884" : "var(--c-border3)";
     return (
         <div style={{
             width: size + 6, height: size + 6,
@@ -59,7 +59,7 @@ function RingAvatar({ name, url, hasUnread, size = 46 }) {
                     width: size, height: size,
                     borderRadius: "50%",
                     objectFit: "cover",
-                    border: "2px solid #111b21",
+                    border: "2px solid var(--c-panel)",
                 }}
             />
         </div>
@@ -102,7 +102,7 @@ function StatusCard({ status, onDelete }) {
             <div style={p.cardMeta}>
                 <span>{timeAgo(status.createdAt)}</span>
                 <span>👁 {viewers.length > 0 ? viewers.length : (status.viewCount ?? 0)}</span>
-                <span style={{ color: "#3a4a54", marginLeft: "auto" }}>
+                <span style={{ color: "var(--c-border3)", marginLeft: "auto" }}>
                     expires {timeAgo(new Date(status.expiresAt))} from now
                 </span>
                 <button style={p.delBtn} onClick={() => onDelete(status.id)} title="Delete">🗑</button>
@@ -192,7 +192,7 @@ function StatusViewer({ statuses, onClose }) {
                     {statuses.map((_, i) => (
                         <div key={i} style={{
                             flex: 1, height: 3, borderRadius: 2,
-                            background: i <= idx ? "#e9edef" : "#3a4a54",
+                            background: i <= idx ? "var(--c-text)" : "var(--c-border3)",
                         }} />
                     ))}
                 </div>
@@ -596,86 +596,86 @@ const v = {
         zIndex: 1000,
     },
     card: {
-        background: "#1f2c34", borderRadius: 12,
+        background: "var(--c-surface6)", borderRadius: 12,
         width: 400, maxWidth: "95vw",
         padding: "16px 20px 20px",
         display: "flex", flexDirection: "column", gap: 12,
     },
     progress: { display: "flex", gap: 4 },
     header:   { display: "flex", alignItems: "center" },
-    name:     { fontSize: 15, fontWeight: 600, color: "#e9edef" },
-    ts:       { fontSize: 12, color: "#8696a0" },
-    closeBtn: { marginLeft: "auto", background: "none", border: "none", color: "#8696a0", fontSize: 18, cursor: "pointer" },
+    name:     { fontSize: 15, fontWeight: 600, color: "var(--c-text)" },
+    ts:       { fontSize: 12, color: "var(--c-muted)" },
+    closeBtn: { marginLeft: "auto", background: "none", border: "none", color: "var(--c-muted)", fontSize: 18, cursor: "pointer" },
     mediaWrap:{ borderRadius: 8, overflow: "hidden", maxHeight: 320, display:"flex", alignItems:"center", justifyContent:"center", background:"#000" },
     media:    { width: "100%", maxHeight: 320, objectFit: "contain" },
-    textBox:  { background: "#2a3942", padding: "14px 16px" },
-    text:     { fontSize: 18, color: "#e9edef", margin: 0, textAlign: "center", whiteSpace: "pre-wrap", wordBreak: "break-word" },
-    views:    { fontSize: 13, color: "#8696a0", textAlign: "right" },
-    seenSection: { borderTop: "1px solid #2a3942", paddingTop: 10, display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" },
+    textBox:  { background: "var(--c-border2)", padding: "14px 16px" },
+    text:     { fontSize: 18, color: "var(--c-text)", margin: 0, textAlign: "center", whiteSpace: "pre-wrap", wordBreak: "break-word" },
+    views:    { fontSize: 13, color: "var(--c-muted)", textAlign: "right" },
+    seenSection: { borderTop: "1px solid var(--c-border2)", paddingTop: 10, display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" },
     seenHeader:  { display: "flex", alignItems: "center", gap: 6, marginBottom: 4 },
     eyeIcon:     { fontSize: 14 },
-    seenCount:   { fontSize: 13, fontWeight: 600, color: "#e9edef" },
+    seenCount:   { fontSize: 13, fontWeight: 600, color: "var(--c-text)" },
     viewerRow:   { display: "flex", alignItems: "center", gap: 10, padding: "5px 2px", borderRadius: 6 },
     viewerAvatar:{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0 },
     viewerInfo:  { display: "flex", alignItems: "center", gap: 6 },
-    viewerName:  { fontSize: 13, color: "#e9edef", fontWeight: 500 },
-    viewerTime:  { fontSize: 11, color: "#8696a0" },
-    hint:        { fontSize: 12, color: "#8696a0", margin: "2px 0", padding: "0 2px" },
+    viewerName:  { fontSize: 13, color: "var(--c-text)", fontWeight: 500 },
+    viewerTime:  { fontSize: 11, color: "var(--c-muted)" },
+    hint:        { fontSize: 12, color: "var(--c-muted)", margin: "2px 0", padding: "0 2px" },
     nav:      { display: "flex", alignItems: "center", justifyContent: "space-between" },
-    navBtn:   { background: "#2a3942", border: "none", borderRadius: 6, color: "#e9edef", padding: "8px 14px", cursor: "pointer", fontSize: 13 },
-    counter:  { fontSize: 13, color: "#8696a0" },
-    replyBar: { display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid #2a3942", paddingTop: 10 },
-    replyInput: { flex: 1, background: "#2a3942", border: "1px solid #3a4a54", borderRadius: 20, color: "#e9edef", fontSize: 14, padding: "8px 14px", outline: "none", fontFamily: "inherit" },
+    navBtn:   { background: "var(--c-border2)", border: "none", borderRadius: 6, color: "var(--c-text)", padding: "8px 14px", cursor: "pointer", fontSize: 13 },
+    counter:  { fontSize: 13, color: "var(--c-muted)" },
+    replyBar: { display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid var(--c-border2)", paddingTop: 10 },
+    replyInput: { flex: 1, background: "var(--c-border2)", border: "1px solid var(--c-border3)", borderRadius: 20, color: "var(--c-text)", fontSize: 14, padding: "8px 14px", outline: "none", fontFamily: "inherit" },
     replyBtn:   { background: "#00a884", border: "none", borderRadius: 20, color: "#fff", padding: "8px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" },
     sentMsg:    { fontSize: 13, color: "#00a884", fontWeight: 500, textAlign: "center", width: "100%", padding: "4px 0" },
 };
 
 const c = {
-    box:        { margin: "0 12px 12px", background: "#1f2c34", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 8 },
+    box:        { margin: "0 12px 12px", background: "var(--c-surface6)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 8 },
     previewWrap:{ position: "relative", borderRadius: 6, overflow: "hidden" },
     preview:    { width: "100%", maxHeight: 160, objectFit: "cover", display: "block", borderRadius: 6 },
     removeImg:  { position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", borderRadius: "50%", width: 24, height: 24, cursor: "pointer", fontSize: 13, lineHeight: "24px", textAlign: "center", padding: 0 },
-    textarea:   { width: "100%", boxSizing: "border-box", background: "#2a3942", border: "1px solid #3a4a54", borderRadius: 6, color: "#e9edef", fontSize: 14, padding: "8px 10px", resize: "none", outline: "none", fontFamily: "inherit" },
+    textarea:   { width: "100%", boxSizing: "border-box", background: "var(--c-border2)", border: "1px solid var(--c-border3)", borderRadius: 6, color: "var(--c-text)", fontSize: 14, padding: "8px 10px", resize: "none", outline: "none", fontFamily: "inherit" },
     row:        { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" },
-    imgBtn:     { background: "none", border: "1px solid #3a4a54", borderRadius: 6, color: "#8696a0", padding: "4px 8px", cursor: "pointer", fontSize: 16 },
-    chars:      { fontSize: 11, color: "#8696a0" },
+    imgBtn:     { background: "none", border: "1px solid var(--c-border3)", borderRadius: 6, color: "var(--c-muted)", padding: "4px 8px", cursor: "pointer", fontSize: 16 },
+    chars:      { fontSize: 11, color: "var(--c-muted)" },
     err:        { fontSize: 12, color: "#ff6b6b", flex: 1 },
-    cancelBtn:  { background: "none", border: "1px solid #3a4a54", borderRadius: 6, color: "#8696a0", padding: "6px 10px", cursor: "pointer", fontSize: 12 },
+    cancelBtn:  { background: "none", border: "1px solid var(--c-border3)", borderRadius: 6, color: "var(--c-muted)", padding: "6px 10px", cursor: "pointer", fontSize: 12 },
     postBtn:    { background: "#00a884", border: "none", borderRadius: 6, color: "#fff", padding: "6px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600, marginLeft: "auto" },
 };
 
 const p = {
-    page:          { display: "flex", height: "100vh", background: "#0b141a", color: "#e9edef" },
-    sidebar:       { width: 300, borderRight: "1px solid #222d34", background: "#111b21", overflowY: "auto", display: "flex", flexDirection: "column" },
+    page:          { display: "flex", height: "100vh", background: "var(--c-bg)", color: "var(--c-text)" },
+    sidebar:       { width: 300, borderRight: "1px solid var(--c-surface)", background: "var(--c-panel)", overflowY: "auto", display: "flex", flexDirection: "column" },
     sidebarHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 16px 8px" },
-    title:         { fontSize: 18, margin: 0, color: "#e9edef" },
+    title:         { fontSize: 18, margin: 0, color: "var(--c-text)" },
     backBtn:       { background: "none", border: "none", color: "#00a884", fontSize: 13, cursor: "pointer" },
-    section:       { borderBottom: "1px solid #222d34", paddingBottom: 8 },
-    label:         { fontSize: 11, letterSpacing: "0.5px", color: "#8696a0", padding: "12px 16px 4px" },
+    section:       { borderBottom: "1px solid var(--c-surface)", paddingBottom: 8 },
+    label:         { fontSize: 11, letterSpacing: "0.5px", color: "var(--c-muted)", padding: "12px 16px 4px" },
     row:           { display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", cursor: "pointer" },
     info:          { display: "flex", flexDirection: "column", gap: 2 },
-    rowName:       { fontSize: 15, fontWeight: 500, color: "#e9edef" },
-    rowSub:        { fontSize: 12, color: "#8696a0" },
+    rowName:       { fontSize: 15, fontWeight: 500, color: "var(--c-text)" },
+    rowSub:        { fontSize: 12, color: "var(--c-muted)" },
     newBadge:      { color: "#00a884", fontWeight: 600 },
-    addDot:        { position: "absolute", bottom: -2, right: -2, width: 20, height: 20, borderRadius: "50%", background: "#00a884", border: "2px solid #111b21", color: "#fff", fontSize: 16, lineHeight: "16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 },
-    hint:          { fontSize: 13, color: "#8696a0", padding: "12px 16px" },
+    addDot:        { position: "absolute", bottom: -2, right: -2, width: 20, height: 20, borderRadius: "50%", background: "#00a884", border: "2px solid var(--c-panel)", color: "#fff", fontSize: 16, lineHeight: "16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 },
+    hint:          { fontSize: 13, color: "var(--c-muted)", padding: "12px 16px" },
     errText:       { fontSize: 13, color: "#ff6b6b", padding: "12px 16px" },
-    main:          { flex: 1, overflowY: "auto", background: "#0b141a", display: "flex", alignItems: "flex-start", justifyContent: "center" },
+    main:          { flex: 1, overflowY: "auto", background: "var(--c-bg)", display: "flex", alignItems: "flex-start", justifyContent: "center" },
     empty:         { display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginTop: 120 },
-    emptyText:     { fontSize: 15, color: "#8696a0", margin: 0 },
+    emptyText:     { fontSize: 15, color: "var(--c-muted)", margin: 0 },
     postFirstBtn:  { background: "#00a884", border: "none", borderRadius: 8, color: "#fff", padding: "12px 24px", fontSize: 15, cursor: "pointer" },
     cardList:      { width: "100%", maxWidth: 580, padding: 24, display: "flex", flexDirection: "column", gap: 12 },
-    cardListTitle: { fontSize: 16, color: "#8696a0", margin: "0 0 4px", fontWeight: 400 },
-    card:          { background: "#1f2c34", borderRadius: 10, overflow: "hidden" },
+    cardListTitle: { fontSize: 16, color: "var(--c-muted)", margin: "0 0 4px", fontWeight: 400 },
+    card:          { background: "var(--c-surface6)", borderRadius: 10, overflow: "hidden" },
     cardImg:       { width: "100%", maxHeight: 260, objectFit: "cover", display: "block" },
-    cardText:      { fontSize: 16, color: "#e9edef", margin: 0, padding: "14px 16px", whiteSpace: "pre-wrap", wordBreak: "break-word" },
-    cardMeta:      { display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", fontSize: 12, color: "#8696a0", borderTop: "1px solid #2a3942" },
-    delBtn:        { background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#8696a0" },
-    viewerSection: { display: "flex", flexDirection: "column", gap: 2, padding: "8px 16px 12px", borderTop: "1px solid #2a3942" },
-    viewerSectionLabel: { fontSize: 11, color: "#8696a0", letterSpacing: "0.4px", marginBottom: 4 },
+    cardText:      { fontSize: 16, color: "var(--c-text)", margin: 0, padding: "14px 16px", whiteSpace: "pre-wrap", wordBreak: "break-word" },
+    cardMeta:      { display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", fontSize: 12, color: "var(--c-muted)", borderTop: "1px solid var(--c-border2)" },
+    delBtn:        { background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--c-muted)" },
+    viewerSection: { display: "flex", flexDirection: "column", gap: 2, padding: "8px 16px 12px", borderTop: "1px solid var(--c-border2)" },
+    viewerSectionLabel: { fontSize: 11, color: "var(--c-muted)", letterSpacing: "0.4px", marginBottom: 4 },
     viewerChip:    { display: "flex", alignItems: "center", gap: 10, padding: "5px 0" },
     chipAvatar:    { width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0 },
     chipInfo:      { display: "flex", alignItems: "center", gap: 8 },
-    chipName:      { fontSize: 13, color: "#e9edef", fontWeight: 500 },
-    chipTime:      { fontSize: 11, color: "#8696a0" },
+    chipName:      { fontSize: 13, color: "var(--c-text)", fontWeight: 500 },
+    chipTime:      { fontSize: 11, color: "var(--c-muted)" },
 };

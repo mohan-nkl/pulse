@@ -51,12 +51,6 @@ services:
       echo 'bucket pulse-media is ready';
       "
 
-  # ---------- Optional: the Spring Boot app itself ----------
-  # Started only with:  docker compose --profile full up -d --build
-  # NOTE: in this mode the app reaches MinIO at minio:9000, so presigned media
-  # URLs point to minio:9000 and will NOT load in your browser. Everything
-  # except viewing uploaded images/videos works. For full media support, run
-  # the app outside Docker (see DOCKER.md).
   app:
     build: .
     container_name: pulse-app

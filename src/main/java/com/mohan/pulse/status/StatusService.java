@@ -210,6 +210,7 @@ public class StatusService {
         if (maybeStatus.isEmpty()) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Status not found or you are not the author.");
         }
+        statusViewRepository.deleteByStatusId(statusId);
         statusRepository.delete(maybeStatus.get());
     }
 

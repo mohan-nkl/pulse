@@ -27,8 +27,8 @@ export default function NotificationToast({ notification, onClose, onClick }) {
                 left: "50%",
                 transform: "translateX(-50%)",
                 zIndex: 9999,
-                background: "#202c33",
-                color: "#e9edef",
+                background: "var(--c-incoming)",
+                color: "var(--c-text)",
                 borderRadius: "12px",
                 padding: "12px 16px",
                 display: "flex",
@@ -64,7 +64,7 @@ export default function NotificationToast({ notification, onClose, onClick }) {
                 </div>
                 <div style={{
                     fontSize: "13px",
-                    color: "#8696a0",
+                    color: "var(--c-muted)",
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -79,7 +79,7 @@ export default function NotificationToast({ notification, onClose, onClick }) {
                 style={{
                     background: "none",
                     border: "none",
-                    color: "#8696a0",
+                    color: "var(--c-muted)",
                     fontSize: "18px",
                     cursor: "pointer",
                     lineHeight: 1,

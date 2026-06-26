@@ -91,7 +91,7 @@ function Ticks({ message }) {
     const isRead = status === "READ";
     const isDelivered = status === "DELIVERED" || isRead;
     const symbol = isDelivered ? "✓✓" : "✓";
-    const color = isRead ? "#4fc3f7" : "#a8c5bd";
+    const color = isRead ? "#4fc3f7" : "var(--c-tick2)";
     return <span style={{ color, fontWeight: 700 }}>{symbol}</span>;
 }
 
@@ -255,6 +255,8 @@ export default function ChatPage() {
     const [groups, setGroups] = useState([]);
     const [lastMessageAt, setLastMessageAt] = useState({});
     const [chatSearch, setChatSearch] = useState("");
+    const [hidden, setHidden] = useState({});
+    const [hoveredChatId, setHoveredChatId] = useState(null);
 
     const [selected, setSelected] = useState(null);
 
@@ -354,6 +356,7 @@ export default function ChatPage() {
             contactsRef.current = loadedContacts;
             loadPartners();
             loadSummaries();
+            loadHidden();
 
             const saved = sessionStorage.getItem("pulse_selected");
             if (saved) {
@@ -380,6 +383,17 @@ export default function ChatPage() {
                         ...previous,
                         [message.conversationId]: message.createdAt,
                     }));
+                }
+
+                if (message.conversationId) {
+                    setHidden((previous) => {
+                        if (!previous[message.conversationId]) {
+                            return previous;
+                        }
+                        const next = { ...previous };
+                        delete next[message.conversationId];
+                        return next;
+                    });
                 }
 
                 const mine = message.senderId === currentUserIdRef.current;
@@ -666,6 +680,62 @@ export default function ChatPage() {
         try {
             const response = await client.get("/api/conversations/summaries");
             setLastMessageAt(response.data.data || {});
+        } catch {
+        }
+    };
+
+    const loadHidden = async () => {
+        try {
+            const response = await client.get("/api/conversations/hidden");
+            const map = {};
+            for (const id of (response.data.data || [])) {
+                map[id] = true;
+            }
+            setHidden(map);
+        } catch {
+        }
+    };
+
+    const handleDeleteConversation = async (target) => {
+        if (!window.confirm("Delete this conversation? This removes it from your chat list.")) {
+            return;
+        }
+
+        let conversationId;
+        try {
+            if (target.type === "group") {
+                conversationId = groupConversationId(target.id);
+                await client.delete(`/api/conversations/group/${target.id}`);
+            } else {
+                conversationId = dmConversationId(currentUserId, target.userId);
+                await client.delete(`/api/conversations/${target.userId}`);
+            }
+        } catch {
+            return;
+        }
+
+        setHidden((previous) => ({ ...previous, [conversationId]: true }));
+        setHoveredChatId(null);
+        setHeaderMenuOpen(false);
+
+        const justDeletedOpenChat = openConversationIdRef.current === conversationId;
+        if (justDeletedOpenChat) {
+            setSelected(null);
+            setMessages([]);
+            openConversationIdRef.current = null;
+            setOpenConversation(null);
+        }
+    };
+
+    const handleSaveContact = async () => {
+        if (selected?.type !== "dm") return;
+        try {
+            const response = await client.post(`/api/v1/contacts/user/${selected.userId}`);
+            const saved = response.data.data;
+            setHeaderMenuOpen(false);
+            await loadContacts();
+            loadPartners();
+            setSelected((prev) => (prev ? { ...prev, name: saved.name } : prev));
         } catch {
         }
     };
@@ -987,8 +1057,11 @@ export default function ChatPage() {
         return (aName || "").localeCompare(bName || "");
     };
 
+    const isHidden = (conversationId) => Boolean(hidden[conversationId]);
+
     const visibleGroups = groups
         .filter((group) => matchesSearch(group.name))
+        .filter((group) => !isHidden(groupConversationId(group.id)))
         .sort((a, b) => byLastMessageDesc(
             timeForConversation(groupConversationId(a.id)),
             timeForConversation(groupConversationId(b.id)),
@@ -997,6 +1070,7 @@ export default function ChatPage() {
 
     const visibleChats = chatList
         .filter((contact) => matchesSearch(contact.name))
+        .filter((contact) => !isHidden(dmConversationId(currentUserId, contact.userId)))
         .sort((a, b) => byLastMessageDesc(
             timeForConversation(dmConversationId(currentUserId, a.userId)),
             timeForConversation(dmConversationId(currentUserId, b.userId)),
@@ -1043,6 +1117,8 @@ export default function ChatPage() {
                                     : {}),
                             }}
                             onClick={() => openGroup(group)}
+                            onMouseEnter={() => setHoveredChatId(gConvId)}
+                            onMouseLeave={() => setHoveredChatId((id) => (id === gConvId ? null : id))}
                         >
                         <span style={styles.itemRow}>
                             <span style={styles.itemLeft}>
@@ -1053,7 +1129,21 @@ export default function ChatPage() {
                                 )}
                                 <span style={styles.itemName}>{group.name}</span>
                             </span>
-                            {unread > 0 && <span style={styles.unreadBadge}>{unread}</span>}
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                                {unread > 0 && <span style={styles.unreadBadge}>{unread}</span>}
+                                {hoveredChatId === gConvId && (
+                                    <span
+                                        style={styles.rowDelete}
+                                        title="Delete chat"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteConversation({ type: "group", id: group.id });
+                                        }}
+                                    >
+                                        🗑
+                                    </span>
+                                )}
+                            </span>
                         </span>
                         </button>
                     );
@@ -1074,6 +1164,8 @@ export default function ChatPage() {
                                     : {}),
                             }}
                             onClick={() => openDirect(contact)}
+                            onMouseEnter={() => setHoveredChatId(cConvId)}
+                            onMouseLeave={() => setHoveredChatId((id) => (id === cConvId ? null : id))}
                         >
                         <span style={styles.itemRow}>
                             <span style={styles.itemLeft}>
@@ -1088,6 +1180,18 @@ export default function ChatPage() {
                             </span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
                                 {unread > 0 && <span style={styles.unreadBadge}>{unread}</span>}
+                                {hoveredChatId === cConvId && (
+                                    <span
+                                        style={styles.rowDelete}
+                                        title="Delete chat"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteConversation({ type: "dm", userId: contact.userId });
+                                        }}
+                                    >
+                                        🗑
+                                    </span>
+                                )}
                                 <span
                                     style={{
                                         ...styles.dot,
@@ -1154,9 +1258,30 @@ export default function ChatPage() {
                                 </div>
                             </div>
                             {selected.type === "group" && (
-                                <button style={styles.infoBtn} onClick={() => setShowMembers((v) => !v)}>
-                                    Members
-                                </button>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                    <button style={styles.infoBtn} onClick={() => setShowMembers((v) => !v)}>
+                                        Members
+                                    </button>
+                                    <div style={{ position: "relative" }}>
+                                        <button
+                                            style={styles.infoBtn}
+                                            onClick={() => setHeaderMenuOpen((v) => !v)}
+                                            aria-label="Chat options"
+                                        >
+                                            ⋮
+                                        </button>
+                                        {headerMenuOpen && (
+                                            <div style={styles.headerMenu}>
+                                                <button
+                                                    style={{ ...styles.headerMenuItem, color: "#f15c6d" }}
+                                                    onClick={() => handleDeleteConversation({ type: "group", id: selected.id })}
+                                                >
+                                                    Delete conversation
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             )}
                             {selected.type === "dm" && (
                                 <div style={{ position: "relative" }}>
@@ -1169,6 +1294,14 @@ export default function ChatPage() {
                                     </button>
                                     {headerMenuOpen && (
                                         <div style={styles.headerMenu}>
+                                            {!contacts.some((c) => c.userId === selected.userId) && (
+                                                <button
+                                                    style={styles.headerMenuItem}
+                                                    onClick={handleSaveContact}
+                                                >
+                                                    Save contact
+                                                </button>
+                                            )}
                                             {isBlocked ? (
                                                 <button
                                                     style={styles.headerMenuItem}
@@ -1184,6 +1317,12 @@ export default function ChatPage() {
                                                     Block
                                                 </button>
                                             )}
+                                            <button
+                                                style={{ ...styles.headerMenuItem, color: "#f15c6d" }}
+                                                onClick={() => handleDeleteConversation({ type: "dm", userId: selected.userId })}
+                                            >
+                                                Delete conversation
+                                            </button>
                                         </div>
                                     )}
                                 </div>
@@ -1356,7 +1495,10 @@ export default function ChatPage() {
 
                                             {pickerOpen && (
                                                 <div
-                                                    style={styles.emojiPopover}
+                                                    style={{
+                                                        ...styles.emojiPopover,
+                                                        ...(mine ? styles.emojiPopoverMine : styles.emojiPopoverTheirs),
+                                                    }}
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
                                                     {QUICK_EMOJIS.map((emoji) => (
@@ -1525,13 +1667,13 @@ export default function ChatPage() {
 }
 
 const styles = {
-    page: { display: "flex", height: "100vh", background: "#0b141a", color: "#e9edef" },
+    page: { display: "flex", height: "100vh", background: "var(--c-bg)", color: "var(--c-text)" },
     sidebar: {
         width: "280px",
-        borderRight: "1px solid #222d34",
+        borderRight: "1px solid var(--c-surface)",
         overflowY: "auto",
         padding: "12px",
-        background: "#111b21",
+        background: "var(--c-panel)",
     },
     sidebarHeader: {
         display: "flex",
@@ -1539,7 +1681,7 @@ const styles = {
         justifyContent: "space-between",
         margin: "4px 8px 12px",
     },
-    sidebarTitle: { fontSize: "18px", margin: 0, color: "#e9edef" },
+    sidebarTitle: { fontSize: "18px", margin: 0, color: "var(--c-text)" },
     newGroupBtn: {
         fontSize: "12px",
         padding: "6px 10px",
@@ -1553,19 +1695,25 @@ const styles = {
         fontSize: "12px",
         textTransform: "uppercase",
         letterSpacing: "0.5px",
-        color: "#8696a0",
+        color: "var(--c-muted)",
         margin: "14px 8px 6px",
     },
-    empty: { fontSize: "14px", color: "#8696a0", padding: "0 8px" },
+    empty: { fontSize: "14px", color: "var(--c-muted)", padding: "0 8px" },
     search: {
         margin: "4px 12px 8px",
         padding: "9px 12px",
         fontSize: "13.5px",
-        background: "#0b141a",
-        border: "1px solid #2a3942",
+        background: "var(--c-bg)",
+        border: "1px solid var(--c-border2)",
         borderRadius: "9px",
-        color: "#e9edef",
+        color: "var(--c-text)",
         outline: "none",
+    },
+    rowDelete: {
+        cursor: "pointer",
+        fontSize: "14px",
+        lineHeight: 1,
+        opacity: 0.85,
     },
     item: {
         display: "block",
@@ -1577,9 +1725,9 @@ const styles = {
         cursor: "pointer",
         fontSize: "15px",
         borderRadius: "6px",
-        color: "#e9edef",
+        color: "var(--c-text)",
     },
-    itemActive: { background: "#2a3942" },
+    itemActive: { background: "var(--c-border2)" },
     itemRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" },
     itemLeft: { display: "flex", alignItems: "center", gap: "10px", minWidth: 0 },
     itemName: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
@@ -1588,8 +1736,8 @@ const styles = {
         width: "34px",
         height: "34px",
         borderRadius: "50%",
-        background: "#2a3942",
-        color: "#e9edef",
+        background: "var(--c-border2)",
+        color: "var(--c-text)",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
@@ -1616,18 +1764,18 @@ const styles = {
         alignItems: "center",
         justifyContent: "center",
     },
-    chat: { flex: 1, display: "flex", flexDirection: "column", background: "#0b141a" },
+    chat: { flex: 1, display: "flex", flexDirection: "column", background: "var(--c-bg)" },
     placeholder: {
         flex: 1,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        color: "#8696a0",
+        color: "var(--c-muted)",
     },
     chatHeader: {
         padding: "10px 16px",
-        borderBottom: "1px solid #222d34",
-        color: "#e9edef",
+        borderBottom: "1px solid var(--c-surface)",
+        color: "var(--c-text)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -1635,15 +1783,15 @@ const styles = {
     headerInfo: { display: "flex", flexDirection: "column" },
     headerLeft: { display: "flex", alignItems: "center", gap: "10px" },
     headerAvatar: { width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover", flex: "0 0 auto" },
-    headerAvatarFallback: { width: "38px", height: "38px", borderRadius: "50%", background: "#2a3942", color: "#e9edef", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: 600, flex: "0 0 auto" },
+    headerAvatarFallback: { width: "38px", height: "38px", borderRadius: "50%", background: "var(--c-border2)", color: "var(--c-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: 600, flex: "0 0 auto" },
     headerName: { fontWeight: 600, fontSize: "15px" },
     clickableName: { cursor: "pointer" },
     headerMenu: {
         position: "absolute",
         top: "36px",
         right: "0",
-        background: "#233138",
-        border: "1px solid #2a3942",
+        background: "var(--c-surface2)",
+        border: "1px solid var(--c-border2)",
         borderRadius: "8px",
         boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
         zIndex: 30,
@@ -1657,18 +1805,18 @@ const styles = {
         padding: "10px 14px",
         background: "none",
         border: "none",
-        color: "#e9edef",
+        color: "var(--c-text)",
         fontSize: "14px",
         cursor: "pointer",
     },
-    presenceLine: { fontSize: "12px", color: "#8696a0", marginTop: "1px", minHeight: "14px" },
+    presenceLine: { fontSize: "12px", color: "var(--c-muted)", marginTop: "1px", minHeight: "14px" },
     infoBtn: {
         fontSize: "13px",
         padding: "6px 12px",
-        border: "1px solid #2a3942",
+        border: "1px solid var(--c-border2)",
         borderRadius: "6px",
         background: "transparent",
-        color: "#e9edef",
+        color: "var(--c-text)",
         cursor: "pointer",
     },
     messages: {
@@ -1679,7 +1827,7 @@ const styles = {
         flexDirection: "column",
         gap: "10px",
     },
-    loadingMore: { textAlign: "center", fontSize: "12px", color: "#8696a0", padding: "8px 0", flexShrink: 0 },
+    loadingMore: { textAlign: "center", fontSize: "12px", color: "var(--c-muted)", padding: "8px 0", flexShrink: 0 },
     row: {
         display: "flex",
         flexDirection: "column",
@@ -1695,8 +1843,8 @@ const styles = {
         display: "flex",
         flexDirection: "column",
     },
-    bubbleMine: { background: "#005c4b", color: "#e9edef" },
-    bubbleTheirs: { background: "#202c33", color: "#e9edef" },
+    bubbleMine: { background: "var(--c-outgoing)", color: "var(--c-text)" },
+    bubbleTheirs: { background: "var(--c-incoming)", color: "var(--c-text)" },
     sender: { fontSize: "12px", color: "#53bdeb", marginBottom: "2px", fontWeight: 600 },
     statusPreview: {
         display: "flex",
@@ -1722,7 +1870,7 @@ const styles = {
         fontSize: 11, color: "#00a884", fontWeight: 600,
     },
     previewText: {
-        fontSize: 12, color: "#a8c5bd",
+        fontSize: 12, color: "var(--c-tick2)",
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
     },
     text: { whiteSpace: "pre-wrap", wordBreak: "break-word", textAlign: "left" },
@@ -1734,8 +1882,8 @@ const styles = {
         marginTop: "2px",
         whiteSpace: "nowrap",
     },
-    time: { fontSize: "11px", color: "#9fc1b8" },
-    editedLabel: { fontSize: "10.5px", color: "#9fc1b8", fontStyle: "italic", marginRight: "2px" },
+    time: { fontSize: "11px", color: "var(--c-tick)" },
+    editedLabel: { fontSize: "10.5px", color: "var(--c-tick)", fontStyle: "italic", marginRight: "2px" },
 
 
     chevron: {
@@ -1749,7 +1897,7 @@ const styles = {
         lineHeight: "14px",
         fontSize: "13px",
         cursor: "pointer",
-        color: "#cdd6dd",
+        color: "var(--c-text3)",
         background: "rgba(0,0,0,0.28)",
         padding: 0,
     },
@@ -1764,8 +1912,8 @@ const styles = {
         display: "flex",
         flexDirection: "column",
         minWidth: "120px",
-        background: "#233138",
-        border: "1px solid #2a3942",
+        background: "var(--c-surface2)",
+        border: "1px solid var(--c-border2)",
         borderRadius: "8px",
         boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
         overflow: "hidden",
@@ -1773,7 +1921,7 @@ const styles = {
     actionMenuItem: {
         border: "none",
         background: "transparent",
-        color: "#e9edef",
+        color: "var(--c-text)",
         textAlign: "left",
         padding: "8px 14px",
         fontSize: "14px",
@@ -1788,38 +1936,39 @@ const styles = {
         fontSize: "14px",
         cursor: "pointer",
     },
-    deletedText: { fontStyle: "italic", color: "#8696a0", fontSize: "13.5px" },
+    deletedText: { fontStyle: "italic", color: "var(--c-muted)", fontSize: "13.5px" },
 
     pillRow: { display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "3px", alignSelf: "stretch" },
     pill: {
         display: "inline-flex",
         alignItems: "center",
         gap: "3px",
-        border: "1px solid #2a3942",
-        background: "#1d282f",
+        border: "1px solid var(--c-border2)",
+        background: "var(--c-surface5)",
         borderRadius: "11px",
         padding: "1px 7px",
         fontSize: "12px",
         cursor: "pointer",
-        color: "#e9edef",
+        color: "var(--c-text)",
         lineHeight: 1.6,
     },
     pillMine: { border: "1px solid #00a884", background: "#0c3a30" },
-    pillCount: { fontSize: "11px", color: "#c5cdd3" },
+    pillCount: { fontSize: "11px", color: "var(--c-text2)" },
 
     emojiPopover: {
         position: "absolute",
-        left: "0",
-        right: "2px",
         zIndex: 20,
         display: "flex",
         gap: "2px",
         padding: "4px 6px",
-        background: "#233138",
-        border: "1px solid #2a3942",
+        background: "var(--c-surface2)",
+        border: "1px solid var(--c-border2)",
         borderRadius: "22px",
         boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+        whiteSpace: "nowrap",
     },
+    emojiPopoverMine: { right: 0 },
+    emojiPopoverTheirs: { left: 0 },
     emojiChoice: {
         border: "none",
         background: "transparent",
@@ -1842,15 +1991,15 @@ const styles = {
     quoteAuthor: { fontSize: "12px", fontWeight: 600, color: "#53bdeb", marginBottom: "1px" },
     quoteText: {
         fontSize: "12.5px",
-        color: "#c5cdd3",
+        color: "var(--c-text2)",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
         maxWidth: "260px",
     },
-    quoteDeleted: { fontStyle: "italic", color: "#8696a0" },
+    quoteDeleted: { fontStyle: "italic", color: "var(--c-muted)" },
 
-    composerWrap: { borderTop: "1px solid #222d34", background: "#111b21" },
+    composerWrap: { borderTop: "1px solid var(--c-surface)", background: "var(--c-panel)" },
     replyBar: {
         display: "flex",
         alignItems: "center",
@@ -1861,7 +2010,7 @@ const styles = {
     replyBarBody: {
         flex: 1,
         borderLeft: "3px solid #00a884",
-        background: "#1d282f",
+        background: "var(--c-surface5)",
         borderRadius: "4px",
         padding: "4px 8px",
         overflow: "hidden",
@@ -1869,7 +2018,7 @@ const styles = {
     replyBarAuthor: { fontSize: "12px", fontWeight: 600, color: "#00a884" },
     replyBarText: {
         fontSize: "12.5px",
-        color: "#c5cdd3",
+        color: "var(--c-text2)",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -1877,7 +2026,7 @@ const styles = {
     replyBarClose: {
         border: "none",
         background: "transparent",
-        color: "#8696a0",
+        color: "var(--c-muted)",
         cursor: "pointer",
         fontSize: "16px",
         lineHeight: 1,
@@ -1906,8 +2055,8 @@ const styles = {
         padding: "10px 12px",
         border: "none",
         borderRadius: "6px",
-        background: "#2a3942",
-        color: "#e9edef",
+        background: "var(--c-border2)",
+        color: "var(--c-text)",
         cursor: "pointer",
         fontSize: "16px",
     },
@@ -1915,10 +2064,10 @@ const styles = {
         flex: 1,
         padding: "10px",
         fontSize: "14px",
-        border: "1px solid #2a3942",
+        border: "1px solid var(--c-border2)",
         borderRadius: "6px",
-        background: "#2a3942",
-        color: "#e9edef",
+        background: "var(--c-border2)",
+        color: "var(--c-text)",
         outline: "none",
     },
     sendButton: {
