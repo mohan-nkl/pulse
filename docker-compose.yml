@@ -1,5 +1,5 @@
-
 services:
+  # ---------- PostgreSQL ----------
   postgres:
     image: postgres:17
     container_name: pulse-postgres
@@ -11,7 +11,73 @@ services:
       - "5432:5432"
     volumes:
       - pulse_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pulse_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ---------- MinIO (object storage) ----------
+  minio:
+    image: minio/minio:latest
+    container_name: pulse-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin123}
+    ports:
+      - "9000:9000"   # S3 API (the app talks to this)
+      - "9001:9001"   # web console: http://localhost:9001
+    volumes:
+      - pulse_miniodata:/data
+    restart: unless-stopped
+
+  # ---------- One-shot: create the bucket the app expects ----------
+  minio-init:
+    image: minio/mc:latest
+    container_name: pulse-minio-init
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin123}
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\"; do
+        echo 'waiting for minio...'; sleep 2;
+      done;
+      mc mb --ignore-existing local/pulse-media;
+      echo 'bucket pulse-media is ready';
+      "
+
+  # ---------- Optional: the Spring Boot app itself ----------
+  # Started only with:  docker compose --profile full up -d --build
+  # NOTE: in this mode the app reaches MinIO at minio:9000, so presigned media
+  # URLs point to minio:9000 and will NOT load in your browser. Everything
+  # except viewing uploaded images/videos works. For full media support, run
+  # the app outside Docker (see DOCKER.md).
+  app:
+    build: .
+    container_name: pulse-app
+    profiles: ["full"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/pulse_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin123}
+    ports:
+      - "8080:8080"
     restart: unless-stopped
 
 volumes:
   pulse_pgdata:
+  pulse_miniodata:

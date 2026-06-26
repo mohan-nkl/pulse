@@ -182,6 +182,18 @@ public class GroupService {
         return toGroupResponse(savedGroup, GroupRole.ADMIN, memberCount);
     }
 
+    @Transactional
+    public GroupResponse removeGroupAvatar(Long actorId, Long groupId) {
+        requireAdmin(actorId, groupId);
+
+        Group group = findGroupOrThrow(groupId);
+        group.setAvatarUrl(null);
+        Group savedGroup = groupRepository.save(group);
+
+        int memberCount = countMembers(groupId);
+        return toGroupResponse(savedGroup, GroupRole.ADMIN, memberCount);
+    }
+
     private void validateAvatar(MultipartFile file) {
         boolean fileMissing = (file == null || file.isEmpty());
         if (fileMissing) {

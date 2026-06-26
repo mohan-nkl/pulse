@@ -108,4 +108,10 @@ public class GroupController {
         Long currentUserId = SecurityUtil.currentUserId();
         return ApiResponse.ok("Group photo updated", groupService.updateGroupAvatar(currentUserId, groupId, file));
     }
+
+    @DeleteMapping("/{groupId}/avatar")
+    public ApiResponse<GroupResponse> removeGroupAvatar(@PathVariable Long groupId) {
+        Long currentUserId = SecurityUtil.currentUserId();
+        return ApiResponse.ok("Group photo removed", groupService.removeGroupAvatar(currentUserId, groupId));
+    }
 }

@@ -82,6 +82,15 @@ public class PresenceService {
         broadcast(new PresenceUpdate(userId, false, now));
     }
 
+    public synchronized void forceOffline(Long userId) {
+        Integer previousCount = connections.remove(userId);
+
+        boolean wasOnline = (previousCount != null);
+        if (wasOnline) {
+            broadcast(new PresenceUpdate(userId, false, Instant.now()));
+        }
+    }
+
     public boolean isOnline(Long userId) {
         return connections.containsKey(userId);
     }
@@ -117,22 +126,6 @@ public class PresenceService {
             if (hiddenByBlock) {
                 result.add(new PresenceUpdate(userId, false, null));
             } else if (isOnline(userId)) {
-                result.add(new PresenceUpdate(userId, true, null));
-            } else {
-                Instant lastSeen = lastSeenByUserId.get(userId);
-                result.add(new PresenceUpdate(userId, false, lastSeen));
-            }
-        }
-        return result;
-    }
-
-    @Transactional(readOnly = true)
-    public List<PresenceUpdate> getPresenceFor(List<Long> userIds) {
-        Map<Long, Instant> lastSeenByUserId = loadLastSeenByUserId(userIds);
-
-        List<PresenceUpdate> result = new ArrayList<>();
-        for (Long userId : distinct(userIds)) {
-            if (isOnline(userId)) {
                 result.add(new PresenceUpdate(userId, true, null));
             } else {
                 Instant lastSeen = lastSeenByUserId.get(userId);

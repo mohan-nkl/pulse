@@ -3,6 +3,7 @@ package com.mohan.pulse.message;
 import com.mohan.pulse.block.BlockService;
 import com.mohan.pulse.common.ApiException;
 import com.mohan.pulse.common.ConversationUtil;
+import com.mohan.pulse.group.GroupMember;
 import com.mohan.pulse.group.GroupMemberRepository;
 import com.mohan.pulse.message.dtos.ConversationPartner;
 import com.mohan.pulse.message.dtos.MessageResponse;
@@ -22,6 +23,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -103,6 +105,29 @@ public class ConversationService {
                     user.getId(), user.getName(), user.getPhone(), avatarUrl, user.getLastSeen()));
         }
         return partners;
+    }
+
+    public Map<String, Instant> getConversationSummaries(Long currentUserId) {
+        Set<String> conversationIds = new HashSet<>();
+        conversationIds.addAll(messageRepository.findDirectConversationIdsBySender(currentUserId));
+        conversationIds.addAll(recipientStatusRepository.findDirectConversationIdsForRecipient(currentUserId));
+
+        for (GroupMember membership : groupMemberRepository.findByUserId(currentUserId)) {
+            Long groupId = membership.getGroup().getId();
+            conversationIds.add(ConversationUtil.groupConversationId(groupId));
+        }
+
+        Map<String, Instant> lastMessageByConversation = new HashMap<>();
+        if (conversationIds.isEmpty()) {
+            return lastMessageByConversation;
+        }
+
+        for (Object[] row : messageRepository.findLastMessageTimes(conversationIds)) {
+            String conversationId = (String) row[0];
+            Instant lastMessageAt = (Instant) row[1];
+            lastMessageByConversation.put(conversationId, lastMessageAt);
+        }
+        return lastMessageByConversation;
     }
 
     private PagedMessages fetchPage(String conversationId, Long beforeId, int limit, Long currentUserId) {

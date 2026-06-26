@@ -8,6 +8,7 @@ import {
     leaveGroup,
     updateGroup,
     uploadGroupAvatar,
+    removeGroupAvatar,
 } from "../api/groupApi";
 
 export default function GroupMembersPanel({ group, contacts, currentUserId, onClose, onLeft, onUpdated }) {
@@ -123,6 +124,19 @@ export default function GroupMembersPanel({ group, contacts, currentUserId, onCl
         }
     };
 
+    const handleRemovePhoto = async () => {
+        setSavingAvatar(true);
+        try {
+            const updated = await removeGroupAvatar(group.id);
+            onUpdated?.(updated);
+            setError("");
+        } catch (err) {
+            setError(err.response?.data?.message || "Could not remove the group photo.");
+        } finally {
+            setSavingAvatar(false);
+        }
+    };
+
     return (
         <aside style={styles.panel}>
             <div style={styles.header}>
@@ -147,6 +161,15 @@ export default function GroupMembersPanel({ group, contacts, currentUserId, onCl
                         >
                             {savingAvatar ? "Uploading…" : "Change photo"}
                         </button>
+                        {group.avatarUrl && (
+                            <button
+                                style={styles.removeBtn}
+                                onClick={handleRemovePhoto}
+                                disabled={savingAvatar}
+                            >
+                                Remove
+                            </button>
+                        )}
                         <input
                             ref={avatarInputRef}
                             type="file"

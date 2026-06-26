@@ -120,7 +120,6 @@ export function SocketProvider({ children }) {
 
         refreshUnreadCounts();
 
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
     useEffect(() => {
