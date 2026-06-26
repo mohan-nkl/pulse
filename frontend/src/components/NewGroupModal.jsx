@@ -134,7 +134,7 @@ const styles = {
         padding: "8px 16px",
         border: "none",
         borderRadius: "6px",
-        background: "#00a884",
+        background: "var(--c-accent)",
         color: "#fff",
         cursor: "pointer",
     },

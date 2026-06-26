@@ -4,7 +4,6 @@ import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../context/NotificationContext";
 import { useSocket } from "../context/SocketContext";
 import NotificationToast from "../components/NotificationToast";
-import HomeButton from "../components/HomeButton";
 import client from "../api/client";
 import { uploadMedia, getMessageType } from "../api/mediaApi";
 import { reactToMessage, unreactToMessage } from "../api/reactionApi";
@@ -91,7 +90,7 @@ function Ticks({ message }) {
     const isRead = status === "READ";
     const isDelivered = status === "DELIVERED" || isRead;
     const symbol = isDelivered ? "✓✓" : "✓";
-    const color = isRead ? "#4fc3f7" : "var(--c-tick2)";
+    const color = isRead ? "var(--c-info)" : "var(--c-tick2)";
     return <span style={{ color, fontWeight: 700 }}>{symbol}</span>;
 }
 
@@ -168,7 +167,7 @@ function mediaPreviewLabel(type) {
     return "";
 }
 
-function QuotedMessage({ message, currentUserId, onJump }) {
+function QuotedMessage({ message, currentUserId, onJump, mine }) {
     if (!message.replyToId) return null;
 
     const fromMe = message.replyToSenderId === currentUserId;
@@ -189,16 +188,17 @@ function QuotedMessage({ message, currentUserId, onJump }) {
 
     return (
         <div
-            style={styles.quoteBlock}
+            style={{ ...styles.quoteBlock, ...(mine ? styles.quoteBlockMine : styles.quoteBlockTheirs) }}
             onClick={(e) => {
                 e.stopPropagation();
                 onJump?.(message.replyToId);
             }}
         >
-            {who && <div style={styles.quoteAuthor}>{who}</div>}
+            {who && <div style={{ ...styles.quoteAuthor, ...(mine ? styles.quoteOnAccent : {}) }}>{who}</div>}
             <div
                 style={{
                     ...styles.quoteText,
+                    ...(mine ? styles.quoteOnAccent : {}),
                     ...(message.replyToDeleted ? styles.quoteDeleted : {}),
                 }}
             >
@@ -257,6 +257,14 @@ export default function ChatPage() {
     const [chatSearch, setChatSearch] = useState("");
     const [hidden, setHidden] = useState({});
     const [hoveredChatId, setHoveredChatId] = useState(null);
+    const [pendingSelect] = useState(() => {
+        try {
+            const saved = sessionStorage.getItem("pulse_selected");
+            return saved ? JSON.parse(saved) : null;
+        } catch {
+            return null;
+        }
+    });
 
     const [selected, setSelected] = useState(null);
 
@@ -280,6 +288,7 @@ export default function ChatPage() {
 
     const [isUploading, setIsUploading] = useState(false);
     const [lightboxUrl, setLightboxUrl] = useState(null);
+    const [picMessage, setPicMessage] = useState("");
 
     const [replyingTo, setReplyingTo] = useState(null);
 
@@ -358,19 +367,14 @@ export default function ChatPage() {
             loadSummaries();
             loadHidden();
 
-            const saved = sessionStorage.getItem("pulse_selected");
-            if (saved) {
-                try {
-                    const { type, userId, id } = JSON.parse(saved);
-                    if (type === "dm") {
-                        const contact = loadedContacts.find((c) => Number(c.userId) === Number(userId));
-                        if (contact) openDirect(contact);
-                    } else if (type === "group") {
-                        const group = loadedGroups.find((g) => Number(g.id) === Number(id));
-                        if (group) openGroup(group);
-                    }
-                } catch {
-
+            if (pendingSelect) {
+                const { type, userId, id } = pendingSelect;
+                if (type === "dm") {
+                    const contact = loadedContacts.find((c) => Number(c.userId) === Number(userId));
+                    if (contact) openDirect(contact);
+                } else if (type === "group") {
+                    const group = loadedGroups.find((g) => Number(g.id) === Number(id));
+                    if (group) openGroup(group);
                 }
             }
         };
@@ -727,6 +731,15 @@ export default function ChatPage() {
         }
     };
 
+    const openAvatar = (url) => {
+        if (url) {
+            setLightboxUrl(url);
+        } else {
+            setPicMessage("No profile picture available");
+            setTimeout(() => setPicMessage(""), 2200);
+        }
+    };
+
     const handleSaveContact = async () => {
         if (selected?.type !== "dm") return;
         try {
@@ -770,6 +783,14 @@ export default function ChatPage() {
         setEditingMessage(null);
         setSelected({ type: "dm", userId: contact.userId, name: contact.name });
         openConversationIdRef.current = convId;
+        setHidden((previous) => {
+            if (!previous[convId]) {
+                return previous;
+            }
+            const next = { ...previous };
+            delete next[convId];
+            return next;
+        });
         setShowMembers(false);
         setHeaderMenuOpen(false);
         setMemberNames({});
@@ -871,10 +892,8 @@ export default function ChatPage() {
             } else {
                 await reactToMessage(messageId, emoji);
             }
-        } catch (error) {
-            console.error("Reaction failed:", error);
+        } catch {
         }
-
     };
 
     const loadOlderMessages = async () => {
@@ -913,8 +932,7 @@ export default function ChatPage() {
         setEmojiPickerFor(null);
         try {
             await reactToMessage(messageId, emoji);
-        } catch (error) {
-            console.error("Reaction failed:", error);
+        } catch {
         }
     };
 
@@ -923,8 +941,7 @@ export default function ChatPage() {
         setMessages((prev) => prev.filter((m) => m.id !== messageId));
         try {
             await deleteForMe(messageId);
-        } catch (error) {
-            console.error("Delete for me failed:", error);
+        } catch {
         }
     };
 
@@ -932,8 +949,7 @@ export default function ChatPage() {
         setMenuFor(null);
         try {
             await deleteForEveryone(messageId);
-        } catch (error) {
-            console.error("Delete for everyone failed:", error);
+        } catch {
             alert("Could not delete for everyone (too old, or not your message).");
         }
     };
@@ -979,8 +995,7 @@ export default function ChatPage() {
             );
             setEditingMessage(null);
             setDraft("");
-            editMessage(id, text).catch((error) => {
-                console.error("Edit failed:", error);
+            editMessage(id, text).catch(() => {
                 alert("Could not edit (too old, or not your message).");
             });
             return;
@@ -1019,8 +1034,7 @@ export default function ChatPage() {
                 sendGroupMessage(selected.id, "", messageType, mediaUrl, replyToId);
             }
             setReplyingTo(null);
-        } catch (error) {
-            console.error("Media upload failed:", error);
+        } catch {
             alert("Upload failed. Please try again.");
         } finally {
             setIsUploading(false);
@@ -1083,18 +1097,24 @@ export default function ChatPage() {
 
     return (
         <div style={styles.page}>
+            <style>{chatCss}</style>
             <aside style={styles.sidebar}>
                 <div style={styles.sidebarHeader}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <HomeButton compact />
+                    <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+                        <div style={styles.brandMark}>
+                            <svg viewBox="0 0 40 40" width="16" height="16" fill="none" stroke="var(--c-on-accent)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M5 20 h6 l3.2 -9 l4.6 18 l3.2 -9 h6.8" />
+                            </svg>
+                        </div>
                         <h2 style={styles.sidebarTitle}>Pulse</h2>
                     </div>
-                    <button style={styles.newGroupBtn} onClick={() => setShowNewGroup(true)}>
+                    <button style={styles.newGroupBtn} className="pulse-newgroup" onClick={() => setShowNewGroup(true)}>
                         New group
                     </button>
                 </div>
 
                 <input
+                    className="pulse-csearch"
                     style={styles.search}
                     type="text"
                     value={chatSearch}
@@ -1196,7 +1216,7 @@ export default function ChatPage() {
                                     style={{
                                         ...styles.dot,
                                         background: presence[contact.userId]?.online
-                                            ? "#00d96a"
+                                            ? "var(--c-online)"
                                             : "#3b4a54",
                                     }}
                                 />
@@ -1209,7 +1229,19 @@ export default function ChatPage() {
 
             <main style={styles.chat}>
                 {!selected ? (
-                    <div style={styles.placeholder}>Select a chat or group to start messaging.</div>
+                    <div style={styles.placeholder}>
+                        <div style={styles.emptyArt}>
+                            <svg width="116" height="116" viewBox="0 0 116 116" fill="none">
+                                <circle cx="58" cy="58" r="54" stroke="var(--c-border2)" strokeWidth="1" />
+                                <circle cx="58" cy="58" r="40" stroke="var(--c-border3)" strokeWidth="1" />
+                                <circle cx="58" cy="58" r="24" fill="var(--c-accent)" opacity="0.12" />
+                                <circle cx="58" cy="58" r="7" fill="var(--c-accent)" />
+                            </svg>
+                        </div>
+                        <h2 style={styles.emptyTitle}>Pulse</h2>
+                        <p style={styles.emptySub}>Select a conversation to start messaging.</p>
+                        <p style={styles.emptyHint}>Quiet, private, and beautifully yours.</p>
+                    </div>
                 ) : (
                     <>
                         <header style={styles.chatHeader}>
@@ -1218,31 +1250,31 @@ export default function ChatPage() {
                                     (() => {
                                         const c = contacts.find((x) => x.userId === selected.userId);
                                         return c?.avatarUrl ? (
-                                            <img src={c.avatarUrl} alt="" style={styles.headerAvatar} />
+                                            <img src={c.avatarUrl} alt="" style={{ ...styles.headerAvatar, cursor: "pointer" }} title="View photo" onClick={() => openAvatar(c.avatarUrl)} />
                                         ) : (
-                                            <div style={styles.headerAvatarFallback}>
+                                            <div style={{ ...styles.headerAvatarFallback, cursor: "pointer" }} title="View photo" onClick={() => openAvatar(null)}>
                                                 {(selected.name || "?").charAt(0).toUpperCase()}
                                             </div>
                                         );
                                     })()
                                 ) : (
                                     selected.avatarUrl ? (
-                                        <img src={selected.avatarUrl} alt="" style={styles.headerAvatar} />
+                                        <img src={selected.avatarUrl} alt="" style={{ ...styles.headerAvatar, cursor: "pointer" }} title="View photo" onClick={() => openAvatar(selected.avatarUrl)} />
                                     ) : (
-                                        <div style={styles.headerAvatarFallback}>#</div>
+                                        <div style={{ ...styles.headerAvatarFallback, cursor: "pointer" }} title="View photo" onClick={() => openAvatar(null)}>#</div>
                                     )
                                 )}
                                 <div style={styles.headerInfo}>
                                     <span
-                                        style={{
-                                            ...styles.headerName,
-                                            ...(selected.type === "dm" ? styles.clickableName : {}),
-                                        }}
+                                        style={{ ...styles.headerName, ...styles.clickableName }}
                                         onClick={() => {
                                             if (selected.type === "dm") {
                                                 navigate(`/users/${selected.userId}/profile`);
+                                            } else {
+                                                setShowMembers(true);
                                             }
                                         }}
+                                        title={selected.type === "group" ? "Group info" : "View profile"}
                                     >
                                         {selected.name}
                                     </span>
@@ -1408,6 +1440,7 @@ export default function ChatPage() {
                                                         message={message}
                                                         currentUserId={currentUserId}
                                                         onJump={jumpToMessage}
+                                                        mine={mine}
                                                     />
 
                                                     <MessageContent message={message} onImageClick={setLightboxUrl} />
@@ -1588,6 +1621,7 @@ export default function ChatPage() {
                                 )}
 
                                 <input
+                                    className="pulse-cinput"
                                     style={styles.input}
                                     value={isUploading ? "Uploading..." : draft}
                                     onChange={(e) => {
@@ -1603,6 +1637,7 @@ export default function ChatPage() {
                                 />
 
                                 <button
+                                    className="pulse-send"
                                     style={styles.sendButton}
                                     onClick={handleSend}
                                     disabled={isUploading}
@@ -1621,6 +1656,10 @@ export default function ChatPage() {
                     contacts={contacts}
                     currentUserId={currentUserId}
                     onClose={() => setShowMembers(false)}
+                    onMessage={(member) => {
+                        setShowMembers(false);
+                        openDirect({ userId: member.userId, name: member.name });
+                    }}
                     onLeft={handleLeftGroup}
                     onUpdated={(updatedGroup) => {
                         setGroups((prev) =>
@@ -1644,6 +1683,8 @@ export default function ChatPage() {
             )}
 
             <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
+
+            {picMessage && <div style={styles.picToast}>{picMessage}</div>}
 
             <NotificationToast
                 notification={activeToast}
@@ -1681,14 +1722,16 @@ const styles = {
         justifyContent: "space-between",
         margin: "4px 8px 12px",
     },
-    sidebarTitle: { fontSize: "18px", margin: 0, color: "var(--c-text)" },
+    sidebarTitle: { fontSize: "19px", fontWeight: 700, letterSpacing: "-0.3px", margin: 0, color: "var(--c-text)" },
+    brandMark: { width: "28px", height: "28px", borderRadius: "9px", background: "linear-gradient(135deg, var(--c-accent), var(--c-accent-hover))", display: "grid", placeItems: "center", flexShrink: 0 },
     newGroupBtn: {
-        fontSize: "12px",
-        padding: "6px 10px",
+        fontSize: "12.5px",
+        fontWeight: 600,
+        padding: "7px 13px",
         border: "none",
-        borderRadius: "6px",
-        background: "#00a884",
-        color: "#fff",
+        borderRadius: "8px",
+        background: "var(--c-accent)",
+        color: "var(--c-on-accent)",
         cursor: "pointer",
     },
     sectionLabel: {
@@ -1700,14 +1743,15 @@ const styles = {
     },
     empty: { fontSize: "14px", color: "var(--c-muted)", padding: "0 8px" },
     search: {
-        margin: "4px 12px 8px",
-        padding: "9px 12px",
+        margin: "4px 8px 10px",
+        padding: "10px 13px",
         fontSize: "13.5px",
-        background: "var(--c-bg)",
+        background: "var(--c-surface)",
         border: "1px solid var(--c-border2)",
-        borderRadius: "9px",
+        borderRadius: "11px",
         color: "var(--c-text)",
         outline: "none",
+        transition: "border-color 0.15s ease, box-shadow 0.15s ease",
     },
     rowDelete: {
         cursor: "pointer",
@@ -1727,7 +1771,7 @@ const styles = {
         borderRadius: "6px",
         color: "var(--c-text)",
     },
-    itemActive: { background: "var(--c-border2)" },
+    itemActive: { background: "rgba(74,157,137,0.14)" },
     itemRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" },
     itemLeft: { display: "flex", alignItems: "center", gap: "10px", minWidth: 0 },
     itemName: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
@@ -1756,7 +1800,7 @@ const styles = {
         height: "18px",
         padding: "0 5px",
         borderRadius: "9px",
-        background: "#00a884",
+        background: "var(--c-accent)",
         color: "#fff",
         fontSize: "11px",
         fontWeight: 700,
@@ -1764,14 +1808,27 @@ const styles = {
         alignItems: "center",
         justifyContent: "center",
     },
-    chat: { flex: 1, display: "flex", flexDirection: "column", background: "var(--c-bg)" },
+    chat: {
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        background: "radial-gradient(1100px 760px at 88% -6%, rgba(74,157,137,0.06), transparent 60%), radial-gradient(820px 620px at 6% 106%, rgba(74,157,137,0.05), transparent 55%), var(--c-bg)",
+    },
     placeholder: {
         flex: 1,
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
+        gap: "6px",
         color: "var(--c-muted)",
+        textAlign: "center",
+        padding: "24px",
     },
+    emptyArt: { marginBottom: "12px", opacity: 0.95 },
+    emptyTitle: { fontSize: "24px", fontWeight: 600, letterSpacing: "5px", textTransform: "uppercase", color: "var(--c-text)" },
+    emptySub: { fontSize: "15px", color: "var(--c-muted)" },
+    emptyHint: { fontSize: "13px", color: "var(--c-muted2)", marginTop: "2px" },
     chatHeader: {
         padding: "10px 16px",
         borderBottom: "1px solid var(--c-surface)",
@@ -1786,14 +1843,28 @@ const styles = {
     headerAvatarFallback: { width: "38px", height: "38px", borderRadius: "50%", background: "var(--c-border2)", color: "var(--c-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: 600, flex: "0 0 auto" },
     headerName: { fontWeight: 600, fontSize: "15px" },
     clickableName: { cursor: "pointer" },
+    picToast: {
+        position: "fixed",
+        bottom: "32px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: "var(--c-elevated)",
+        color: "var(--c-text)",
+        border: "1px solid var(--c-border3)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+        padding: "10px 18px",
+        borderRadius: "10px",
+        fontSize: "13.5px",
+        zIndex: 2000,
+    },
     headerMenu: {
         position: "absolute",
         top: "36px",
         right: "0",
-        background: "var(--c-surface2)",
+        background: "var(--c-elevated)",
         border: "1px solid var(--c-border2)",
         borderRadius: "8px",
-        boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+        boxShadow: "0 12px 32px rgba(0,0,0,0.26), 0 2px 8px rgba(0,0,0,0.12)",
         zIndex: 30,
         minWidth: "140px",
         overflow: "hidden",
@@ -1836,22 +1907,23 @@ const styles = {
     bubble: {
         position: "relative",
         maxWidth: "100%",
-        padding: "6px 26px 5px 12px",
-        borderRadius: "12px",
+        padding: "7px 28px 6px 13px",
+        borderRadius: "16px",
         fontSize: "14px",
-        lineHeight: 1.4,
+        lineHeight: 1.45,
         display: "flex",
         flexDirection: "column",
+        boxShadow: "var(--c-shadow-soft)",
     },
-    bubbleMine: { background: "var(--c-outgoing)", color: "var(--c-text)" },
+    bubbleMine: { background: "var(--c-outgoing)", color: "var(--c-on-accent)" },
     bubbleTheirs: { background: "var(--c-incoming)", color: "var(--c-text)" },
-    sender: { fontSize: "12px", color: "#53bdeb", marginBottom: "2px", fontWeight: 600 },
+    sender: { fontSize: "12px", color: "var(--c-info)", marginBottom: "2px", fontWeight: 600 },
     statusPreview: {
         display: "flex",
         alignItems: "center",
         gap: 8,
         background: "rgba(0,0,0,0.2)",
-        borderLeft: "3px solid #00a884",
+        borderLeft: "3px solid var(--c-accent)",
         borderRadius: "4px",
         padding: "6px 8px",
         marginBottom: 6,
@@ -1867,7 +1939,7 @@ const styles = {
         display: "flex", flexDirection: "column", gap: 2, minWidth: 0,
     },
     previewAuthor: {
-        fontSize: 11, color: "#00a884", fontWeight: 600,
+        fontSize: 11, color: "var(--c-accent)", fontWeight: 600,
     },
     previewText: {
         fontSize: 12, color: "var(--c-tick2)",
@@ -1897,8 +1969,8 @@ const styles = {
         lineHeight: "14px",
         fontSize: "13px",
         cursor: "pointer",
-        color: "var(--c-text3)",
-        background: "rgba(0,0,0,0.28)",
+        color: "rgba(255,255,255,0.95)",
+        background: "rgba(0,0,0,0.42)",
         padding: 0,
     },
     chevronMine: {},
@@ -1912,10 +1984,10 @@ const styles = {
         display: "flex",
         flexDirection: "column",
         minWidth: "120px",
-        background: "var(--c-surface2)",
+        background: "var(--c-elevated)",
         border: "1px solid var(--c-border2)",
         borderRadius: "8px",
-        boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+        boxShadow: "0 12px 32px rgba(0,0,0,0.26), 0 2px 8px rgba(0,0,0,0.12)",
         overflow: "hidden",
     },
     actionMenuItem: {
@@ -1952,7 +2024,7 @@ const styles = {
         color: "var(--c-text)",
         lineHeight: 1.6,
     },
-    pillMine: { border: "1px solid #00a884", background: "#0c3a30" },
+    pillMine: { border: "1px solid var(--c-accent)", background: "#0c3a30" },
     pillCount: { fontSize: "11px", color: "var(--c-text2)" },
 
     emojiPopover: {
@@ -1961,10 +2033,10 @@ const styles = {
         display: "flex",
         gap: "2px",
         padding: "4px 6px",
-        background: "var(--c-surface2)",
+        background: "var(--c-elevated)",
         border: "1px solid var(--c-border2)",
         borderRadius: "22px",
-        boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+        boxShadow: "0 12px 32px rgba(0,0,0,0.26), 0 2px 8px rgba(0,0,0,0.12)",
         whiteSpace: "nowrap",
     },
     emojiPopoverMine: { right: 0 },
@@ -1980,15 +2052,16 @@ const styles = {
     },
 
     quoteBlock: {
-        borderLeft: "3px solid #53bdeb",
-        background: "rgba(255,255,255,0.06)",
-        borderRadius: "4px",
-        padding: "4px 8px",
+        borderRadius: "6px",
+        padding: "5px 9px",
         marginBottom: "4px",
         cursor: "pointer",
         maxWidth: "100%",
     },
-    quoteAuthor: { fontSize: "12px", fontWeight: 600, color: "#53bdeb", marginBottom: "1px" },
+    quoteBlockTheirs: { background: "rgba(74,157,137,0.12)", borderLeft: "3px solid var(--c-accent)" },
+    quoteBlockMine: { background: "rgba(255,255,255,0.18)", borderLeft: "3px solid rgba(255,255,255,0.7)" },
+    quoteOnAccent: { color: "rgba(255,255,255,0.92)" },
+    quoteAuthor: { fontSize: "12px", fontWeight: 600, color: "var(--c-info)", marginBottom: "1px" },
     quoteText: {
         fontSize: "12.5px",
         color: "var(--c-text2)",
@@ -2009,13 +2082,13 @@ const styles = {
     },
     replyBarBody: {
         flex: 1,
-        borderLeft: "3px solid #00a884",
+        borderLeft: "3px solid var(--c-accent)",
         background: "var(--c-surface5)",
         borderRadius: "4px",
         padding: "4px 8px",
         overflow: "hidden",
     },
-    replyBarAuthor: { fontSize: "12px", fontWeight: 600, color: "#00a884" },
+    replyBarAuthor: { fontSize: "12px", fontWeight: 600, color: "var(--c-accent)" },
     replyBarText: {
         fontSize: "12.5px",
         color: "var(--c-text2)",
@@ -2043,7 +2116,7 @@ const styles = {
     },
     mediaVideo: { maxWidth: "280px", borderRadius: "8px", display: "block", marginBottom: "4px" },
     mediaAudio: { maxWidth: "260px", display: "block", marginBottom: "4px" },
-    fileLink: { color: "#53bdeb", textDecoration: "none", display: "block", marginBottom: "4px" },
+    fileLink: { color: "var(--c-info)", textDecoration: "none", display: "block", marginBottom: "4px" },
     caption: { margin: "4px 0 0", fontSize: "13px" },
 
     composer: {
@@ -2052,31 +2125,33 @@ const styles = {
         padding: "12px",
     },
     attachButton: {
-        padding: "10px 12px",
+        padding: "10px 13px",
         border: "none",
-        borderRadius: "6px",
-        background: "var(--c-border2)",
-        color: "var(--c-text)",
+        borderRadius: "22px",
+        background: "var(--c-surface)",
+        color: "var(--c-muted)",
         cursor: "pointer",
         fontSize: "16px",
     },
     input: {
         flex: 1,
-        padding: "10px",
+        padding: "11px 16px",
         fontSize: "14px",
         border: "1px solid var(--c-border2)",
-        borderRadius: "6px",
-        background: "var(--c-border2)",
+        borderRadius: "22px",
+        background: "var(--c-surface)",
         color: "var(--c-text)",
         outline: "none",
+        transition: "border-color 0.15s ease, box-shadow 0.15s ease",
     },
     sendButton: {
-        padding: "10px 18px",
+        padding: "10px 20px",
         border: "none",
-        borderRadius: "6px",
+        borderRadius: "22px",
         cursor: "pointer",
-        background: "#00a884",
-        color: "#fff",
+        background: "var(--c-accent)",
+        color: "var(--c-on-accent)",
+        fontWeight: 600,
     },
 
     lightboxOverlay: {
@@ -2101,3 +2176,8 @@ const styles = {
         lineHeight: 1,
     },
 };
+
+const chatCss = `
+.pulse-csearch:focus, .pulse-cinput:focus { border-color: var(--c-accent) !important; box-shadow: 0 0 0 3px rgba(74,157,137,0.18); }
+.pulse-newgroup:hover, .pulse-send:hover { background: var(--c-accent-hover) !important; }
+`;

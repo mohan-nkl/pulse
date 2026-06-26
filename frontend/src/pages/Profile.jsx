@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
-import HomeButton from "../components/HomeButton";
 import { getMyProfile, updateProfile, uploadAvatar, removeAvatar } from "../api/profileApi";
 
 export default function Profile() {
@@ -93,35 +92,28 @@ export default function Profile() {
         <div style={styles.container}>
             <style>{css}</style>
             <div style={styles.card}>
-                <HomeButton style={{ marginBottom: "16px", alignSelf: "flex-start" }} />
-                <h1 style={styles.title}>My Profile</h1>
-
-                {error && <div style={styles.error}>{error}</div>}
-                {success && <div style={styles.successBox}>{success}</div>}
-
-                {}
-                <div style={styles.avatarWrapper}>
-                    <img
-                        src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || "U")}&size=96&background=00a884&color=fff`}
-                        alt="avatar"
-                        style={styles.avatar}
-                    />
-                    <button
-                        style={styles.avatarBtn}
-                        onClick={() => fileInputRef.current.click()}
-                        disabled={uploading}
-                    >
-                        {uploading ? "Uploading..." : "Change photo"}
-                    </button>
-                    {profile.avatarUrl && (
-                        <button
-                            style={styles.avatarRemoveBtn}
-                            onClick={handleRemoveAvatar}
-                            disabled={uploading}
-                        >
-                            Remove photo
+                <div style={styles.cover} />
+                <div style={styles.body}>
+                <div style={styles.hero}>
+                    <div style={styles.avatarRing}>
+                        <img
+                            src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || "U")}&size=120&background=2c6b5b&color=fff`}
+                            alt="avatar"
+                            style={styles.avatar}
+                        />
+                    </div>
+                    {!editMode && <h1 style={styles.heroName}>{profile.name || "—"}</h1>}
+                    {!editMode && <p style={styles.heroAbout}>{profile.about || "Hey there! I am using Pulse."}</p>}
+                    <div style={styles.photoBtns}>
+                        <button style={styles.avatarBtn} onClick={() => fileInputRef.current.click()} disabled={uploading}>
+                            {uploading ? "Uploading…" : "Change photo"}
                         </button>
-                    )}
+                        {profile.avatarUrl && (
+                            <button style={styles.avatarRemoveBtn} onClick={handleRemoveAvatar} disabled={uploading}>
+                                Remove
+                            </button>
+                        )}
+                    </div>
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -131,20 +123,14 @@ export default function Profile() {
                     />
                 </div>
 
-                {}
+                {error && <div style={styles.error}>{error}</div>}
+                {success && <div style={styles.successBox}>{success}</div>}
+
                 {!editMode && (
                     <div style={styles.detailsSection}>
                         <div style={styles.detailRow}>
-                            <span style={styles.detailLabel}>Name</span>
-                            <span style={styles.detailValue}>{profile.name || "—"}</span>
-                        </div>
-                        <div style={styles.detailRow}>
                             <span style={styles.detailLabel}>Phone</span>
                             <span style={styles.detailValue}>{user?.phone || "—"}</span>
-                        </div>
-                        <div style={styles.detailRow}>
-                            <span style={styles.detailLabel}>About</span>
-                            <span style={styles.detailValue}>{profile.about || "—"}</span>
                         </div>
                         <div style={styles.detailRow}>
                             <span style={styles.detailLabel}>Last seen</span>
@@ -166,7 +152,7 @@ export default function Profile() {
                     <form onSubmit={handleSave} style={styles.detailsSection}>
                         <label style={styles.label}>Name</label>
                         <input
-                            style={styles.input}
+                            className="pulse-pinput" style={styles.input}
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
@@ -176,7 +162,7 @@ export default function Profile() {
 
                         <label style={styles.label}>About</label>
                         <input
-                            style={styles.input}
+                            className="pulse-pinput" style={styles.input}
                             type="text"
                             value={about}
                             onChange={(e) => setAbout(e.target.value)}
@@ -203,6 +189,7 @@ export default function Profile() {
                         </div>
                     </form>
                 )}
+                </div>
             </div>
         </div>
     );
@@ -221,41 +208,50 @@ const styles = {
         padding: "24px",
         boxSizing: "border-box",
         background:
-            "radial-gradient(1200px 500px at 50% -10%, rgba(0,168,132,0.10), transparent 60%), var(--c-bg)",
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            "radial-gradient(1200px 500px at 50% -10%, rgba(74,157,137,0.10), transparent 60%), var(--c-bg)",
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     },
     card: {
         display: "flex",
         flexDirection: "column",
-        width: "360px",
+        width: "400px",
         maxWidth: "100%",
-        padding: "28px 24px",
         background: "var(--c-panel)",
         border: "1px solid var(--c-border)",
-        borderRadius: "18px",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+        borderRadius: "20px",
+        boxShadow: "var(--c-shadow)",
         color: "var(--c-text)",
+        overflow: "hidden",
     },
-    title: { fontSize: "22px", fontWeight: 600, margin: "0 0 18px", textAlign: "center" },
-    avatarWrapper: {
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        marginBottom: "22px",
-        gap: "10px",
+    cover: {
+        height: "108px",
+        background:
+            "radial-gradient(420px 200px at 80% 0%, rgba(255,255,255,0.16), transparent 60%), linear-gradient(135deg, var(--c-accent), var(--c-accent-hover))",
+    },
+    body: { padding: "0 28px 28px" },
+    hero: { display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "22px" },
+    avatarRing: {
+        marginTop: "-56px",
+        padding: "5px",
+        borderRadius: "50%",
+        background: "var(--c-panel)",
+        boxShadow: "0 6px 20px rgba(0,0,0,0.20)",
     },
     avatar: {
-        width: "92px",
-        height: "92px",
+        width: "104px",
+        height: "104px",
         borderRadius: "50%",
         objectFit: "cover",
-        border: "2px solid #00a884",
+        display: "block",
     },
+    heroName: { fontSize: "22px", fontWeight: 600, color: "var(--c-text)", margin: "14px 0 0" },
+    heroAbout: { fontSize: "13.5px", color: "var(--c-muted)", margin: "4px 0 0", textAlign: "center", maxWidth: "280px" },
+    photoBtns: { display: "flex", gap: "16px", marginTop: "12px" },
     avatarBtn: {
         fontSize: "13px",
         background: "none",
         border: "none",
-        color: "#38d39f",
+        color: "var(--c-accent)",
         cursor: "pointer",
         padding: 0,
         fontWeight: 500,
@@ -306,8 +302,8 @@ const styles = {
         border: "none",
         borderRadius: "10px",
         cursor: "pointer",
-        background: "#00a884",
-        color: "var(--c-bg)",
+        background: "var(--c-accent)",
+        color: "var(--c-on-accent)",
     },
     buttonRow: { display: "flex", gap: "10px", marginTop: "18px" },
     cancelBtn: {
@@ -329,8 +325,8 @@ const styles = {
         border: "none",
         borderRadius: "10px",
         cursor: "pointer",
-        background: "#00a884",
-        color: "var(--c-bg)",
+        background: "var(--c-accent)",
+        color: "var(--c-on-accent)",
     },
     error: {
         background: "rgba(241,92,109,0.12)",
@@ -341,8 +337,8 @@ const styles = {
         marginBottom: "12px",
     },
     successBox: {
-        background: "rgba(0,168,132,0.14)",
-        color: "#38d39f",
+        background: "rgba(74,157,137,0.14)",
+        color: "var(--c-accent)",
         padding: "10px 12px",
         borderRadius: "9px",
         fontSize: "13.5px",
@@ -351,7 +347,8 @@ const styles = {
 };
 
 const css = `
-.pulse-btn:hover { background: #06cf7f !important; }
+.pulse-btn:hover { background: var(--c-accent-hover) !important; }
 .pulse-btn:disabled { opacity: 0.6; cursor: default; }
+.pulse-pinput:focus { border-color: var(--c-accent); box-shadow: 0 0 0 3px rgba(74,157,137,0.18); }
 input::placeholder { color: var(--c-muted2); }
 `;
