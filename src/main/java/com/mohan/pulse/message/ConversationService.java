@@ -22,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -46,13 +48,15 @@ public class ConversationService {
     private final StorageService storageService;
     private final BlockService blockService;
     private final UserRepository userRepository;
+    private final ClearedConversationRepository clearedConversationRepository;
 
     public PagedMessages getDirectConversation(Long currentUserId,
                                                Long otherUserId,
                                                Long beforeId,
                                                int limit) {
         String conversationId = ConversationUtil.dmConversationId(currentUserId, otherUserId);
-        return fetchPage(conversationId, beforeId, limit, currentUserId);
+        Instant clearedAt = clearedAtFor(currentUserId, conversationId);
+        return fetchPage(conversationId, beforeId, limit, currentUserId, clearedAt);
     }
 
     public PagedMessages getGroupConversation(Long currentUserId,
@@ -65,7 +69,8 @@ public class ConversationService {
         }
 
         String conversationId = ConversationUtil.groupConversationId(groupId);
-        return fetchPage(conversationId, beforeId, limit, currentUserId);
+        Instant clearedAt = clearedAtFor(currentUserId, conversationId);
+        return fetchPage(conversationId, beforeId, limit, currentUserId, clearedAt);
     }
 
     public Map<String, Integer> getUnreadCounts(Long userId) {
@@ -130,7 +135,80 @@ public class ConversationService {
         return lastMessageByConversation;
     }
 
-    private PagedMessages fetchPage(String conversationId, Long beforeId, int limit, Long currentUserId) {
+    @Transactional
+    public void clearDirectConversation(Long userId, Long otherUserId) {
+        String conversationId = ConversationUtil.dmConversationId(userId, otherUserId);
+        clearConversation(userId, conversationId);
+    }
+
+    @Transactional
+    public void clearGroupConversation(Long userId, Long groupId) {
+        String conversationId = ConversationUtil.groupConversationId(groupId);
+        clearConversation(userId, conversationId);
+    }
+
+    private void clearConversation(Long userId, String conversationId) {
+        Instant now = Instant.now();
+
+        Optional<ClearedConversation> existing =
+                clearedConversationRepository.findByUser_IdAndConversationId(userId, conversationId);
+        if (existing.isPresent()) {
+            ClearedConversation cleared = existing.get();
+            cleared.setClearedAt(now);
+            clearedConversationRepository.save(cleared);
+            return;
+        }
+
+        ClearedConversation cleared = new ClearedConversation();
+        cleared.setUser(userRepository.getReferenceById(userId));
+        cleared.setConversationId(conversationId);
+        cleared.setClearedAt(now);
+        clearedConversationRepository.save(cleared);
+    }
+
+    public List<String> getHiddenConversations(Long userId) {
+        List<ClearedConversation> clearedList = clearedConversationRepository.findByUser_Id(userId);
+        if (clearedList.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Set<String> clearedIds = new HashSet<>();
+        Map<String, Instant> clearedAtById = new HashMap<>();
+        for (ClearedConversation cleared : clearedList) {
+            clearedIds.add(cleared.getConversationId());
+            clearedAtById.put(cleared.getConversationId(), cleared.getClearedAt());
+        }
+
+        Map<String, Instant> lastMessageById = new HashMap<>();
+        for (Object[] row : messageRepository.findLastMessageTimes(clearedIds)) {
+            String conversationId = (String) row[0];
+            Instant lastMessageAt = (Instant) row[1];
+            lastMessageById.put(conversationId, lastMessageAt);
+        }
+
+        List<String> hidden = new ArrayList<>();
+        for (String conversationId : clearedIds) {
+            Instant clearedAt = clearedAtById.get(conversationId);
+            Instant lastMessageAt = lastMessageById.get(conversationId);
+
+            boolean hasNewerMessage = (lastMessageAt != null && lastMessageAt.isAfter(clearedAt));
+            if (!hasNewerMessage) {
+                hidden.add(conversationId);
+            }
+        }
+        return hidden;
+    }
+
+    private Instant clearedAtFor(Long userId, String conversationId) {
+        Optional<ClearedConversation> existing =
+                clearedConversationRepository.findByUser_IdAndConversationId(userId, conversationId);
+        if (existing.isEmpty()) {
+            return null;
+        }
+        return existing.get().getClearedAt();
+    }
+
+    private PagedMessages fetchPage(String conversationId, Long beforeId, int limit, Long currentUserId, Instant clearedAt) {
         PageRequest pageRequest = PageRequest.of(0, limit);
 
         List<Message> newestFirst;
@@ -147,11 +225,11 @@ public class ConversationService {
         List<Message> oldestFirst = new ArrayList<>(newestFirst);
         Collections.reverse(oldestFirst);
 
-        List<MessageResponse> responses = toResponses(oldestFirst, currentUserId);
+        List<MessageResponse> responses = toResponses(oldestFirst, currentUserId, clearedAt);
         return new PagedMessages(responses, hasMore);
     }
 
-    private List<MessageResponse> toResponses(List<Message> messages, Long currentUserId) {
+    private List<MessageResponse> toResponses(List<Message> messages, Long currentUserId, Instant clearedAt) {
         if (messages.isEmpty()) {
             return List.of();
         }
@@ -167,6 +245,11 @@ public class ConversationService {
 
         List<MessageResponse> responses = new ArrayList<>();
         for (Message message : messages) {
+            boolean clearedForMe = (clearedAt != null && !message.getCreatedAt().isAfter(clearedAt));
+            if (clearedForMe) {
+                continue;
+            }
+
             boolean hiddenForMe = hiddenMessageIds.contains(message.getId());
             if (hiddenForMe) {
                 continue;

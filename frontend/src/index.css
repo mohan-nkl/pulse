@@ -109,3 +109,54 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* ===== Pulse theme tokens (dark = default, light = override) ===== */
+:root {
+  --c-bg: #0b141a;
+  --c-panel: #111b21;
+  --c-incoming: #202c33;
+  --c-surface: #222d34;
+  --c-surface2: #233138;
+  --c-surface3: #16222a;
+  --c-surface4: #1d2a32;
+  --c-surface5: #1d282f;
+  --c-surface6: #1f2c34;
+  --c-border: #1f2c33;
+  --c-border2: #2a3942;
+  --c-border3: #3a4a54;
+  --c-text: #e9edef;
+  --c-text2: #c5cdd3;
+  --c-text3: #cdd6dd;
+  --c-muted: #8696a0;
+  --c-muted2: #5b6b74;
+  --c-tick: #9fc1b8;
+  --c-tick2: #a8c5bd;
+  --c-outgoing: #005c4b;
+}
+:root[data-theme="light"] {
+  --c-bg: #eceff1;
+  --c-panel: #ffffff;
+  --c-incoming: #ffffff;
+  --c-surface: #f0f2f5;
+  --c-surface2: #ffffff;
+  --c-surface3: #f0f2f5;
+  --c-surface4: #e7ebee;
+  --c-surface5: #f0f2f5;
+  --c-surface6: #eef0f2;
+  --c-border: #e3e6e8;
+  --c-border2: #d1d7db;
+  --c-border3: #cfd5da;
+  --c-text: #111b21;
+  --c-text2: #1f2c33;
+  --c-text3: #1f2c33;
+  --c-muted: #667781;
+  --c-muted2: #8696a0;
+  --c-tick: #8696a0;
+  --c-tick2: #8696a0;
+  --c-outgoing: #d9fdd3;
+}
+body { background: var(--c-bg); }
+
+body { color: var(--c-text); }
+h1, h2 { color: var(--c-text); }
+code, .counter { color: var(--c-text); background: var(--c-surface); }

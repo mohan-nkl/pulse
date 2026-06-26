@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+import { ThemeProvider } from "./context/ThemeContext";
 import { AuthProvider } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { SocketProvider } from "./context/SocketContext";
@@ -20,6 +21,7 @@ import "./index.css";
 
 createRoot(document.getElementById("root")).render(
     <StrictMode>
+        <ThemeProvider>
         <BrowserRouter>
             <AuthProvider>
                 <NotificationProvider>
@@ -39,5 +41,6 @@ createRoot(document.getElementById("root")).render(
                 </NotificationProvider>
             </AuthProvider>
         </BrowserRouter>
+        </ThemeProvider>
     </StrictMode>
 );
