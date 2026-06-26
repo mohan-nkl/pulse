@@ -253,6 +253,8 @@ export default function ChatPage() {
     const [contacts, setContacts] = useState([]);
     const [extraChats, setExtraChats] = useState([]);
     const [groups, setGroups] = useState([]);
+    const [lastMessageAt, setLastMessageAt] = useState({});
+    const [chatSearch, setChatSearch] = useState("");
 
     const [selected, setSelected] = useState(null);
 
@@ -351,6 +353,7 @@ export default function ChatPage() {
             const [loadedContacts, loadedGroups] = await Promise.all([loadContacts(), loadGroups()]);
             contactsRef.current = loadedContacts;
             loadPartners();
+            loadSummaries();
 
             const saved = sessionStorage.getItem("pulse_selected");
             if (saved) {
@@ -372,6 +375,13 @@ export default function ChatPage() {
 
         const unsubscribers = [
             addListener("message", (message) => {
+                if (message.conversationId && message.createdAt) {
+                    setLastMessageAt((previous) => ({
+                        ...previous,
+                        [message.conversationId]: message.createdAt,
+                    }));
+                }
+
                 const mine = message.senderId === currentUserIdRef.current;
 
                 if (mine) {
@@ -485,7 +495,6 @@ export default function ChatPage() {
             if (typingIdleTimerRef.current) clearTimeout(typingIdleTimerRef.current);
             Object.values(typingExpiryTimersRef.current).forEach(clearTimeout);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -650,7 +659,14 @@ export default function ChatPage() {
             setExtraChats(extras);
             loadPresence(extras.map((e) => e.userId));
         } catch {
-            // leave the non-contact chats empty on failure
+        }
+    };
+
+    const loadSummaries = async () => {
+        try {
+            const response = await client.get("/api/conversations/summaries");
+            setLastMessageAt(response.data.data || {});
+        } catch {
         }
     };
 
@@ -959,6 +975,34 @@ export default function ChatPage() {
 
     const chatList = [...contacts, ...extraChats];
 
+    const matchesSearch = (name) =>
+        (name || "").toLowerCase().includes(chatSearch.trim().toLowerCase());
+
+    const timeForConversation = (conversationId) => lastMessageAt[conversationId] || "";
+
+    const byLastMessageDesc = (aTime, bTime, aName, bName) => {
+        if (aTime && bTime) return bTime.localeCompare(aTime);
+        if (aTime) return -1;
+        if (bTime) return 1;
+        return (aName || "").localeCompare(bName || "");
+    };
+
+    const visibleGroups = groups
+        .filter((group) => matchesSearch(group.name))
+        .sort((a, b) => byLastMessageDesc(
+            timeForConversation(groupConversationId(a.id)),
+            timeForConversation(groupConversationId(b.id)),
+            a.name, b.name,
+        ));
+
+    const visibleChats = chatList
+        .filter((contact) => matchesSearch(contact.name))
+        .sort((a, b) => byLastMessageDesc(
+            timeForConversation(dmConversationId(currentUserId, a.userId)),
+            timeForConversation(dmConversationId(currentUserId, b.userId)),
+            a.name, b.name,
+        ));
+
     const typingHere = selected
         ? Object.keys(typing[openConversationIdRef.current] || {}).map(Number)
         : [];
@@ -976,9 +1020,17 @@ export default function ChatPage() {
                     </button>
                 </div>
 
+                <input
+                    style={styles.search}
+                    type="text"
+                    value={chatSearch}
+                    onChange={(event) => setChatSearch(event.target.value)}
+                    placeholder="Search chats and groups…"
+                />
+
                 <p style={styles.sectionLabel}>Groups</p>
                 {groups.length === 0 && <p style={styles.empty}>No groups yet.</p>}
-                {groups.map((group) => {
+                {visibleGroups.map((group) => {
                     const gConvId = groupConversationId(group.id);
                     const unread = unreadPerConversation[gConvId] || 0;
                     return (
@@ -1009,7 +1061,7 @@ export default function ChatPage() {
 
                 <p style={styles.sectionLabel}>Chats</p>
                 {chatList.length === 0 && <p style={styles.empty}>No contacts yet.</p>}
-                {chatList.map((contact) => {
+                {visibleChats.map((contact) => {
                     const cConvId = dmConversationId(currentUserId, contact.userId);
                     const unread = unreadPerConversation[cConvId] || 0;
                     return (
@@ -1213,14 +1265,12 @@ export default function ChatPage() {
                                                 <span style={styles.deletedText}>🚫 This message was deleted</span>
                                             ) : (
                                                 <>
-                                                    {/* reply quote, only on reply messages */}
                                                     <QuotedMessage
                                                         message={message}
                                                         currentUserId={currentUserId}
                                                         onJump={jumpToMessage}
                                                     />
 
-                                                    {/* renders text, image, video, audio, or file */}
                                                     <MessageContent message={message} onImageClick={setLightboxUrl} />
                                                 </>
                                             )}
@@ -1235,7 +1285,6 @@ export default function ChatPage() {
                                                 {mine && !message.deleted && <Ticks message={message} />}
                                             </span>
 
-                                            {/* hover chevron: opens the React / Reply menu */}
                                             {(hovered || menuOpen || pickerOpen) && (
                                                 <button
                                                     style={{
@@ -1253,7 +1302,6 @@ export default function ChatPage() {
                                                 </button>
                                             )}
 
-                                            {/* the little React / Reply menu */}
                                             {menuOpen && (
                                                 <div
                                                     style={styles.actionMenu}
@@ -1306,7 +1354,6 @@ export default function ChatPage() {
                                                 </div>
                                             )}
 
-                                            {/* emoji quick-picker, floating ABOVE the bubble */}
                                             {pickerOpen && (
                                                 <div
                                                     style={styles.emojiPopover}
@@ -1325,7 +1372,6 @@ export default function ChatPage() {
                                             )}
                                         </div>
 
-                                        {/* reaction pills sit UNDER the bubble */}
                                         <ReactionPills
                                             reactions={message.reactions}
                                             currentUserId={currentUserId}
@@ -1380,7 +1426,6 @@ export default function ChatPage() {
                             )}
 
                             <div style={styles.composer}>
-                                {/* hidden file input */}
                                 <input
                                     ref={fileInputRef}
                                     type="file"
@@ -1389,7 +1434,6 @@ export default function ChatPage() {
                                     onChange={handleFileSelected}
                                 />
 
-                                {/* paperclip / attach button — hidden while editing */}
                                 {!editingMessage && (
                                     <button
                                         style={styles.attachButton}
@@ -1513,6 +1557,16 @@ const styles = {
         margin: "14px 8px 6px",
     },
     empty: { fontSize: "14px", color: "#8696a0", padding: "0 8px" },
+    search: {
+        margin: "4px 12px 8px",
+        padding: "9px 12px",
+        fontSize: "13.5px",
+        background: "#0b141a",
+        border: "1px solid #2a3942",
+        borderRadius: "9px",
+        color: "#e9edef",
+        outline: "none",
+    },
     item: {
         display: "block",
         width: "100%",
@@ -1626,8 +1680,6 @@ const styles = {
         gap: "10px",
     },
     loadingMore: { textAlign: "center", fontSize: "12px", color: "#8696a0", padding: "8px 0", flexShrink: 0 },
-    // one message = a column: [bubble] then [pills]. The row hugs its content
-    // and the JSX sets alignItems (flex-end for mine, flex-start for theirs).
     row: {
         display: "flex",
         flexDirection: "column",
@@ -1685,7 +1737,6 @@ const styles = {
     time: { fontSize: "11px", color: "#9fc1b8" },
     editedLabel: { fontSize: "10.5px", color: "#9fc1b8", fontStyle: "italic", marginRight: "2px" },
 
-    // hover chevron at the bubble's top corner
 
     chevron: {
         position: "absolute",

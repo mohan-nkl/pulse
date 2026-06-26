@@ -1,10 +1,12 @@
-import { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { signup as signupApi, login as loginApi } from "../api/authApi.js";
 import client, { saveToken, clearToken } from "../api/client.js";
 
 const USER_KEY = "pulse_user";
+const CLOSED_AT_KEY = "pulse_closed_at";
 
-const INACTIVITY_LIMIT_MS = 60 * 60 * 1000;
+const HIDDEN_LIMIT_MS = 60 * 60 * 1000;
+const CLOSED_LIMIT_MS = 10 * 60 * 1000;
 
 const AuthContext = createContext(null);
 
@@ -12,10 +14,25 @@ export function AuthProvider({ children }) {
 
     const [user, setUser] = useState(() => {
         const saved = localStorage.getItem(USER_KEY);
-        return saved ? JSON.parse(saved) : null;
-    });
+        if (!saved) {
+            return null;
+        }
 
-    const inactivityTimerRef = useRef(null);
+        const closedAtRaw = localStorage.getItem(CLOSED_AT_KEY);
+        localStorage.removeItem(CLOSED_AT_KEY);
+
+        if (closedAtRaw) {
+            const closedForMs = Date.now() - Number(closedAtRaw);
+            if (closedForMs > CLOSED_LIMIT_MS) {
+                clearToken();
+                localStorage.removeItem(USER_KEY);
+                sessionStorage.setItem("pulse_logout_reason", "expired");
+                return null;
+            }
+        }
+
+        return JSON.parse(saved);
+    });
 
     const handleAuthSuccess = (data) => {
         saveToken(data.token);
@@ -28,6 +45,7 @@ export function AuthProvider({ children }) {
         };
 
         localStorage.setItem(USER_KEY, JSON.stringify(profile));
+        localStorage.removeItem(CLOSED_AT_KEY);
         setUser(profile);
     };
 
@@ -70,21 +88,36 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         if (!user) return;
 
-        const resetTimer = () => {
-            if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-            inactivityTimerRef.current = setTimeout(() => {
+        let hiddenAt = 0;
+
+        const onVisibilityChange = () => {
+            const tabHidden = (document.visibilityState === "hidden");
+
+            if (tabHidden) {
+                hiddenAt = Date.now();
+                localStorage.setItem(CLOSED_AT_KEY, String(Date.now()));
+                return;
+            }
+
+            localStorage.removeItem(CLOSED_AT_KEY);
+
+            const hiddenForMs = hiddenAt ? (Date.now() - hiddenAt) : 0;
+            hiddenAt = 0;
+            if (hiddenForMs > HIDDEN_LIMIT_MS) {
                 clearSession("expired");
-            }, INACTIVITY_LIMIT_MS);
+            }
         };
 
-        const events = ["mousedown", "keydown", "scroll", "touchstart", "mousemove", "click"];
-        events.forEach((evt) => window.addEventListener(evt, resetTimer, { passive: true }));
+        const onPageHide = () => {
+            localStorage.setItem(CLOSED_AT_KEY, String(Date.now()));
+        };
 
-        resetTimer();
+        document.addEventListener("visibilitychange", onVisibilityChange);
+        window.addEventListener("pagehide", onPageHide);
 
         return () => {
-            events.forEach((evt) => window.removeEventListener(evt, resetTimer));
-            if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+            window.removeEventListener("pagehide", onPageHide);
         };
     }, [user, clearSession]);
 

@@ -6,12 +6,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
 public interface MessageRepository extends JpaRepository<Message, Long> {
-
-    List<Message> findByConversationIdOrderByCreatedAtAsc(String conversationId);
 
     List<Message> findByConversationIdOrderByCreatedAtDesc(
             String conversationId, Pageable pageable);
@@ -22,4 +21,8 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Query("SELECT DISTINCT m.conversationId FROM Message m " +
            "WHERE m.sender.id = :userId AND m.conversationType = com.mohan.pulse.message.ConversationType.DIRECT")
     List<String> findDirectConversationIdsBySender(@Param("userId") Long userId);
+
+    @Query("SELECT m.conversationId, MAX(m.createdAt) FROM Message m " +
+           "WHERE m.conversationId IN :conversationIds GROUP BY m.conversationId")
+    List<Object[]> findLastMessageTimes(@Param("conversationIds") Collection<String> conversationIds);
 }

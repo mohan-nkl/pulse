@@ -21,16 +21,12 @@ public class UserProfileService {
     private final UserRepository userRepository;
     private final StorageService storageService;
     private final BlockService blockService;
+    private final PresenceService presenceService;
 
     private static final List<String> ALLOWED_TYPES = List.of("image/jpeg", "image/png", "image/webp");
     private static final long MAX_SIZE = 5 * 1024 * 1024;
 
     public UserProfileResponse getMyProfile(Long userId) {
-        User user = findById(userId);
-        return toResponse(user);
-    }
-
-    public UserProfileResponse getUserProfile(Long userId) {
         User user = findById(userId);
         return toResponse(user);
     }
@@ -74,6 +70,8 @@ public class UserProfileService {
         User user = findById(userId);
         user.setLastSeen(Instant.now());
         userRepository.save(user);
+
+        presenceService.forceOffline(userId);
     }
 
     public String uploadAvatar(Long userId, MultipartFile file) {

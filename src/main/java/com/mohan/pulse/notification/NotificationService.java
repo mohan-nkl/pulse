@@ -79,14 +79,6 @@ public class NotificationService {
         }
     }
 
-    public synchronized int getTotalUnread(Long userId) {
-        Map<String, Integer> userUnread = unreadByUser.get(userId);
-        if (userUnread == null) {
-            return 0;
-        }
-        return totalUnreadFor(userUnread);
-    }
-
     private Map<String, Integer> unreadFor(Long userId) {
         Map<String, Integer> userUnread = unreadByUser.get(userId);
         if (userUnread == null) {

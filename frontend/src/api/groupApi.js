@@ -53,6 +53,11 @@ export const uploadGroupAvatar = async (groupId, file) => {
     return response.data.data;
 };
 
+export const removeGroupAvatar = async (groupId) => {
+    const response = await client.delete(`/api/groups/${groupId}/avatar`);
+    return response.data.data;
+};
+
 export const getGroupHistory = async (groupId) => {
     const response = await client.get(`/api/conversations/group/${groupId}`);
     return response.data.data;

@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -51,5 +52,11 @@ public class ConversationController {
     public ApiResponse<List<ConversationPartner>> getPartners() {
         Long currentUserId = SecurityUtil.currentUserId();
         return ApiResponse.ok(conversationService.getPartners(currentUserId));
+    }
+
+    @GetMapping("/summaries")
+    public ApiResponse<Map<String, Instant>> getConversationSummaries() {
+        Long currentUserId = SecurityUtil.currentUserId();
+        return ApiResponse.ok(conversationService.getConversationSummaries(currentUserId));
     }
 }

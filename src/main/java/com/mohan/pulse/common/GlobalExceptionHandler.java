@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -35,6 +36,17 @@ public class GlobalExceptionHandler {
         String combinedErrors = String.join(", ", messages);
 
         ApiResponse<Object> body = ApiResponse.error(combinedErrors);
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(body);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMissingParam(MissingServletRequestParameterException ex) {
+
+        ApiResponse<Object> body = ApiResponse.error(
+                "Required parameter '" + ex.getParameterName() + "' is missing.");
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
