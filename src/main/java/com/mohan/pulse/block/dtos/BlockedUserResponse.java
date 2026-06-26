@@ -11,6 +11,7 @@ public class BlockedUserResponse {
 
     private final Long userId;
     private final String name;
+    private final String phone;
     private final String avatarUrl;
     private final Instant blockedAt;
 }
