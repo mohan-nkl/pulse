@@ -211,7 +211,7 @@ export default function Profile() {
 const styles = {
     center: {
         display: "flex", justifyContent: "center", alignItems: "center",
-        minHeight: "100vh", background: "#0b141a", color: "#e9edef",
+        minHeight: "100vh", background: "var(--c-bg)", color: "var(--c-text)",
     },
     container: {
         display: "flex",
@@ -221,7 +221,7 @@ const styles = {
         padding: "24px",
         boxSizing: "border-box",
         background:
-            "radial-gradient(1200px 500px at 50% -10%, rgba(0,168,132,0.10), transparent 60%), #0b141a",
+            "radial-gradient(1200px 500px at 50% -10%, rgba(0,168,132,0.10), transparent 60%), var(--c-bg)",
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     },
     card: {
@@ -230,11 +230,11 @@ const styles = {
         width: "360px",
         maxWidth: "100%",
         padding: "28px 24px",
-        background: "#111b21",
-        border: "1px solid #1f2c33",
+        background: "var(--c-panel)",
+        border: "1px solid var(--c-border)",
         borderRadius: "18px",
         boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
-        color: "#e9edef",
+        color: "var(--c-text)",
     },
     title: { fontSize: "22px", fontWeight: 600, margin: "0 0 18px", textAlign: "center" },
     avatarWrapper: {
@@ -275,7 +275,7 @@ const styles = {
         justifyContent: "space-between",
         alignItems: "center",
         padding: "13px 0",
-        borderBottom: "1px solid #1f2c33",
+        borderBottom: "1px solid var(--c-border)",
         gap: "12px",
     },
     detailRowLast: {
@@ -285,16 +285,16 @@ const styles = {
         padding: "13px 0",
         gap: "12px",
     },
-    detailLabel: { fontSize: "13px", color: "#8696a0" },
+    detailLabel: { fontSize: "13px", color: "var(--c-muted)" },
     detailValue: { fontSize: "14px", fontWeight: 500, textAlign: "right", maxWidth: "220px", wordBreak: "break-word" },
-    label: { fontSize: "13px", color: "#8696a0", marginTop: "10px", marginBottom: "4px" },
+    label: { fontSize: "13px", color: "var(--c-muted)", marginTop: "10px", marginBottom: "4px" },
     input: {
         padding: "11px 12px",
         fontSize: "14px",
-        background: "#0b141a",
-        border: "1px solid #2a3942",
+        background: "var(--c-bg)",
+        border: "1px solid var(--c-border2)",
         borderRadius: "9px",
-        color: "#e9edef",
+        color: "var(--c-text)",
         boxSizing: "border-box",
         outline: "none",
     },
@@ -307,7 +307,7 @@ const styles = {
         borderRadius: "10px",
         cursor: "pointer",
         background: "#00a884",
-        color: "#0b141a",
+        color: "var(--c-bg)",
     },
     buttonRow: { display: "flex", gap: "10px", marginTop: "18px" },
     cancelBtn: {
@@ -315,11 +315,11 @@ const styles = {
         padding: "12px",
         fontSize: "14px",
         fontWeight: 500,
-        border: "1px solid #2a3942",
+        border: "1px solid var(--c-border2)",
         borderRadius: "10px",
         cursor: "pointer",
         background: "transparent",
-        color: "#e9edef",
+        color: "var(--c-text)",
     },
     saveBtn: {
         flex: 1,
@@ -330,7 +330,7 @@ const styles = {
         borderRadius: "10px",
         cursor: "pointer",
         background: "#00a884",
-        color: "#0b141a",
+        color: "var(--c-bg)",
     },
     error: {
         background: "rgba(241,92,109,0.12)",
@@ -353,5 +353,5 @@ const styles = {
 const css = `
 .pulse-btn:hover { background: #06cf7f !important; }
 .pulse-btn:disabled { opacity: 0.6; cursor: default; }
-input::placeholder { color: #5b6b74; }
+input::placeholder { color: var(--c-muted2); }
 `;

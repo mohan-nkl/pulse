@@ -8,6 +8,8 @@ public interface StatusViewRepository extends JpaRepository<StatusView, Long> {
 
     long countByStatusId(Long statusId);
 
+    void deleteByStatusId(Long statusId);
+
     boolean existsByStatusIdAndViewerId(Long statusId, Long viewerId);
 
     List<StatusView> findByStatusIdOrderByViewedAtDesc(Long statusId);
