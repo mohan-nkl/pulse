@@ -46,7 +46,7 @@ export default function NotificationToast({ notification, onClose, onClick }) {
                 width: "40px",
                 height: "40px",
                 borderRadius: "50%",
-                background: "#00a884",
+                background: "var(--c-accent)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

@@ -11,7 +11,7 @@ import {
     removeGroupAvatar,
 } from "../api/groupApi";
 
-export default function GroupMembersPanel({ group, contacts, currentUserId, onClose, onLeft, onUpdated }) {
+export default function GroupMembersPanel({ group, contacts, currentUserId, onClose, onLeft, onUpdated, onMessage }) {
     const [members, setMembers] = useState([]);
     const [adding, setAdding] = useState(false);
     const [selectedToAdd, setSelectedToAdd] = useState([]);
@@ -197,14 +197,17 @@ export default function GroupMembersPanel({ group, contacts, currentUserId, onCl
                     const isMe = member.userId === currentUserId;
                     return (
                         <div key={member.userId} style={styles.memberRow}>
-              <span>
-                {member.name || "Unknown"}{isMe ? " (you)" : ""}
-                  {member.role === "ADMIN" && <span style={styles.badge}>admin</span>}
-              </span>
+                            <span style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
+                                {member.name || "Unknown"}{isMe ? " (you)" : ""}
+                                {member.role === "ADMIN" && <span style={styles.badge}>admin</span>}
+                            </span>
 
-                            {isAdmin && !isMe && (
+                            {!isMe && (
                                 <span style={styles.memberActions}>
-                                    {member.role === "ADMIN" ? (
+                                    <button style={styles.smallBtn} onClick={() => onMessage?.(member)} title="Message">
+                                        Message
+                                    </button>
+                                    {isAdmin && (member.role === "ADMIN" ? (
                                         <button style={styles.smallBtn} onClick={() => handleDemote(member.userId)}>
                                             Dismiss admin
                                         </button>
@@ -212,10 +215,12 @@ export default function GroupMembersPanel({ group, contacts, currentUserId, onCl
                                         <button style={styles.smallBtn} onClick={() => handlePromote(member.userId)}>
                                             Make admin
                                         </button>
+                                    ))}
+                                    {isAdmin && (
+                                        <button style={styles.removeBtn} onClick={() => handleRemove(member.userId)}>
+                                            Remove
+                                        </button>
                                     )}
-                                    <button style={styles.removeBtn} onClick={() => handleRemove(member.userId)}>
-                                        Remove
-                                    </button>
                                 </span>
                             )}
                         </div>
@@ -329,8 +334,8 @@ const styles = {
     badge: {
         marginLeft: "8px",
         fontSize: "11px",
-        color: "#00a884",
-        border: "1px solid #00a884",
+        color: "var(--c-accent)",
+        border: "1px solid var(--c-accent)",
         borderRadius: "4px",
         padding: "1px 5px",
     },
@@ -360,7 +365,7 @@ const styles = {
         border: "1px dashed var(--c-border2)",
         borderRadius: "6px",
         background: "transparent",
-        color: "#00a884",
+        color: "var(--c-accent)",
         cursor: "pointer",
     },
     list: {
@@ -386,7 +391,7 @@ const styles = {
         padding: "7px 14px",
         border: "none",
         borderRadius: "6px",
-        background: "#00a884",
+        background: "var(--c-accent)",
         color: "#fff",
         cursor: "pointer",
     },

@@ -4,7 +4,6 @@ import { getUserProfile } from "../api/profileApi";
 import { blockUser, unblockUser, getBlockStatus } from "../api/blockApi";
 
 export default function ViewProfile() {
-
     const { userId } = useParams();
     const navigate = useNavigate();
 
@@ -45,12 +44,9 @@ export default function ViewProfile() {
     const formatLastSeen = (iso) => {
         if (!iso) return "a long time ago";
         const date = new Date(iso);
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
+        const diffMins = Math.floor((Date.now() - date) / 60000);
         const diffHours = Math.floor(diffMins / 60);
         const diffDays = Math.floor(diffHours / 24);
-
         if (diffMins < 1) return "just now";
         if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
         if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
@@ -59,85 +55,62 @@ export default function ViewProfile() {
         return date.toLocaleDateString();
     };
 
-    if (loading) return <div style={styles.center}>Loading...</div>;
+    if (loading) return <div style={styles.center}>Loading…</div>;
     if (error) return <div style={styles.center}>{error}</div>;
 
     return (
         <div style={styles.container}>
             <style>{css}</style>
             <div style={styles.card}>
-
-                <button style={styles.backBtn} className="pulse-back" onClick={() => navigate(-1)}>← Back</button>
-
-                {}
-                <div style={styles.avatarWrapper}>
-                    <img
-                        src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || "U")}&size=96&background=00a884&color=fff`}
-                        alt="avatar"
-                        style={styles.avatar}
-                    />
-                    <h2 style={styles.name}>{profile.name || "Unknown"}</h2>
-
-                    {}
-                    <span style={styles.lastSeen}>
-                        Last seen {formatLastSeen(profile.lastSeen)}
-                    </span>
+                <div style={styles.cover}>
+                    <button style={styles.backBtn} className="pulse-back" onClick={() => navigate(-1)} aria-label="Back">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="15 18 9 12 15 6" />
+                        </svg>
+                    </button>
                 </div>
 
-                {}
-                <div style={styles.detailsSection}>
-                    {profile.about && (
-                        <div style={styles.detailRow}>
-                            <span style={styles.detailLabel}>About</span>
-                            <span style={styles.detailValue}>{profile.about}</span>
+                <div style={styles.body}>
+                    <div style={styles.hero}>
+                        <div style={styles.avatarRing}>
+                            <img
+                                src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || "U")}&size=120&background=2c6b5b&color=fff`}
+                                alt="avatar"
+                                style={styles.avatar}
+                            />
                         </div>
-                    )}
-                    <div style={styles.detailRowLast}>
-                        <span style={styles.detailLabel}>Member since</span>
-                        <span style={styles.detailValue}>
-                            {new Date(profile.createdAt).toLocaleDateString()}
-                        </span>
+                        <h2 style={styles.heroName}>{profile.name || "Unknown"}</h2>
+                        <p style={styles.heroSub}>Last seen {formatLastSeen(profile.lastSeen)}</p>
                     </div>
+
+                    <div style={styles.detailsSection}>
+                        {profile.about && (
+                            <div style={styles.detailRow}>
+                                <span style={styles.detailLabel}>About</span>
+                                <span style={styles.detailValue}>{profile.about}</span>
+                            </div>
+                        )}
+                        <div style={styles.detailRowLast}>
+                            <span style={styles.detailLabel}>Member since</span>
+                            <span style={styles.detailValue}>{new Date(profile.createdAt).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+
+                    <button
+                        style={isBlocked ? styles.unblockBtn : styles.blockBtn}
+                        className={isBlocked ? "pulse-btn" : "pulse-block"}
+                        onClick={toggleBlock}
+                        disabled={working}
+                    >
+                        {working ? "…" : isBlocked ? "Unblock" : "Block"}
+                    </button>
                 </div>
-
-                <button
-                    style={isBlocked ? styles.unblockBtn : styles.blockBtn}
-                    onClick={toggleBlock}
-                    disabled={working}
-                >
-                    {working ? "..." : isBlocked ? "Unblock" : "Block"}
-                </button>
-
             </div>
         </div>
     );
 }
 
 const styles = {
-    blockBtn: {
-        marginTop: "20px",
-        width: "100%",
-        padding: "12px",
-        background: "transparent",
-        color: "#f15c6d",
-        border: "1px solid #f15c6d",
-        borderRadius: "8px",
-        fontSize: "15px",
-        fontWeight: 600,
-        cursor: "pointer",
-    },
-    unblockBtn: {
-        marginTop: "20px",
-        width: "100%",
-        padding: "12px",
-        background: "#00a884",
-        color: "#fff",
-        border: "none",
-        borderRadius: "8px",
-        fontSize: "15px",
-        fontWeight: 600,
-        cursor: "pointer",
-    },
     center: {
         display: "flex", justifyContent: "center", alignItems: "center",
         minHeight: "100vh", background: "var(--c-bg)", color: "var(--c-text)",
@@ -149,73 +122,81 @@ const styles = {
         minHeight: "100vh",
         padding: "24px",
         boxSizing: "border-box",
-        background:
-            "radial-gradient(1200px 500px at 50% -10%, rgba(0,168,132,0.10), transparent 60%), var(--c-bg)",
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        background: "radial-gradient(1200px 500px at 50% -10%, rgba(74,157,137,0.10), transparent 60%), var(--c-bg)",
     },
     card: {
         display: "flex",
         flexDirection: "column",
-        width: "360px",
+        width: "400px",
         maxWidth: "100%",
-        padding: "24px",
         background: "var(--c-panel)",
         border: "1px solid var(--c-border)",
-        borderRadius: "18px",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+        borderRadius: "20px",
+        boxShadow: "var(--c-shadow)",
         color: "var(--c-text)",
+        overflow: "hidden",
+    },
+    cover: {
+        height: "108px",
+        position: "relative",
+        background: "radial-gradient(420px 200px at 80% 0%, rgba(255,255,255,0.16), transparent 60%), linear-gradient(135deg, var(--c-accent), var(--c-accent-hover))",
     },
     backBtn: {
-        background: "none",
+        position: "absolute",
+        top: "14px",
+        left: "14px",
+        width: "34px",
+        height: "34px",
+        borderRadius: "50%",
         border: "none",
         cursor: "pointer",
-        fontSize: "14px",
-        color: "#38d39f",
-        padding: 0,
-        marginBottom: "16px",
-        textAlign: "left",
-        alignSelf: "flex-start",
-        fontWeight: 500,
+        background: "rgba(255,255,255,0.20)",
+        color: "#ffffff",
+        display: "grid",
+        placeItems: "center",
+        transition: "background 0.15s ease",
     },
-    avatarWrapper: {
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        marginBottom: "22px",
-        gap: "8px",
-    },
-    avatar: {
-        width: "96px",
-        height: "96px",
+    body: { padding: "0 28px 28px" },
+    hero: { display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "20px" },
+    avatarRing: {
+        position: "relative",
+        zIndex: 2,
+        marginTop: "-56px",
+        padding: "5px",
         borderRadius: "50%",
-        objectFit: "cover",
-        border: "2px solid #00a884",
+        background: "var(--c-panel)",
+        boxShadow: "0 6px 20px rgba(0,0,0,0.20)",
     },
-    name: { fontSize: "21px", fontWeight: 600, margin: "6px 0 0" },
-    lastSeen: {
-        fontSize: "13px",
-        color: "var(--c-muted)",
-    },
+    avatar: { width: "104px", height: "104px", borderRadius: "50%", objectFit: "cover", display: "block" },
+    heroName: { fontSize: "22px", fontWeight: 600, color: "var(--c-text)", margin: "14px 0 0" },
+    heroSub: { fontSize: "13px", color: "var(--c-muted)", margin: "4px 0 0" },
     detailsSection: { display: "flex", flexDirection: "column" },
     detailRow: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: "13px 0",
-        borderBottom: "1px solid var(--c-border)",
-        gap: "12px",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "13px 0", borderBottom: "1px solid var(--c-border)", gap: "12px",
     },
     detailRowLast: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: "13px 0",
-        gap: "12px",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "13px 0", gap: "12px",
     },
     detailLabel: { fontSize: "13px", color: "var(--c-muted)" },
     detailValue: { fontSize: "14px", fontWeight: 500, textAlign: "right", maxWidth: "220px", wordBreak: "break-word" },
+    blockBtn: {
+        marginTop: "20px", width: "100%", padding: "12px",
+        background: "transparent", color: "#e0717f", border: "1px solid #e0717f",
+        borderRadius: "10px", fontSize: "15px", fontWeight: 600, cursor: "pointer",
+        transition: "background 0.15s ease",
+    },
+    unblockBtn: {
+        marginTop: "20px", width: "100%", padding: "12px",
+        background: "var(--c-accent)", color: "var(--c-on-accent)", border: "none",
+        borderRadius: "10px", fontSize: "15px", fontWeight: 600, cursor: "pointer",
+        transition: "background 0.15s ease",
+    },
 };
 
 const css = `
-.pulse-back:hover { color: #06cf7f !important; }
+.pulse-back:hover { background: rgba(255,255,255,0.32) !important; }
+.pulse-block:hover { background: rgba(224,113,127,0.12); }
+.pulse-btn:hover { background: var(--c-accent-hover) !important; }
 `;
