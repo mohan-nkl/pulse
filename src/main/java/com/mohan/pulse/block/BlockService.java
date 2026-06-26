@@ -93,6 +93,7 @@ public class BlockService {
         return new BlockedUserResponse(
                 blockedUser.getId(),
                 blockedUser.getName(),
+                blockedUser.getPhone(),
                 avatarUrl,
                 block.getCreatedAt());
     }
