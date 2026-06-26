@@ -90,8 +90,8 @@ function Ticks({ message }) {
     const isRead = status === "READ";
     const isDelivered = status === "DELIVERED" || isRead;
     const symbol = isDelivered ? "✓✓" : "✓";
-    const color = isRead ? "var(--c-info)" : "var(--c-tick2)";
-    return <span style={{ color, fontWeight: 700 }}>{symbol}</span>;
+    const color = isRead ? "#5fc8ff" : "rgba(255,255,255,0.95)";
+    return <span style={{ color, fontWeight: 700, fontSize: "12.5px", letterSpacing: "-0.5px" }}>{symbol}</span>;
 }
 
 function Lightbox({ url, onClose }) {
@@ -1449,9 +1449,9 @@ export default function ChatPage() {
 
                                             <span style={styles.meta}>
                                                 {message.edited && !message.deleted && (
-                                                    <span style={styles.editedLabel}>edited</span>
+                                                    <span style={{ ...styles.editedLabel, ...(mine ? styles.timeMine : {}) }}>edited</span>
                                                 )}
-                                                <span style={styles.time}>
+                                                <span style={{ ...styles.time, ...(mine ? styles.timeMine : {}) }}>
                                                     {formatTime(message.createdAt)}
                                                 </span>
                                                 {mine && !message.deleted && <Ticks message={message} />}
@@ -1955,6 +1955,7 @@ const styles = {
         whiteSpace: "nowrap",
     },
     time: { fontSize: "11px", color: "var(--c-tick)" },
+    timeMine: { color: "rgba(255,255,255,0.82)" },
     editedLabel: { fontSize: "10.5px", color: "var(--c-tick)", fontStyle: "italic", marginRight: "2px" },
 
 
