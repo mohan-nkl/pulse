@@ -23,7 +23,8 @@ public class SecurityConfig {
             "/ws/**",
             "/avatars/**",
             "/media/**",
-            "/status-media/**"
+            "/status-media/**",
+            "/actuator/health"
     };
 
     @Bean

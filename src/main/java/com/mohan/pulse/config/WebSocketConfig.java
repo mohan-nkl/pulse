@@ -2,6 +2,7 @@ package com.mohan.pulse.config;
 
 import com.mohan.pulse.auth.WebSocketAuthInterceptor;
 import com.mohan.pulse.auth.WebSocketHandshakeHandler;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -9,16 +10,16 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.util.Arrays;
+
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private static final String WEBSOCKET_ENDPOINT = "/ws";
 
-    private static final String[] ALLOWED_ORIGINS = {
-            "http://localhost:5173"
-
-    };
+    @Value("${app.allowed-origins}")
+    private String allowedOrigins;
 
     private final WebSocketAuthInterceptor authInterceptor;
 
@@ -28,11 +29,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        String[] origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toArray(String[]::new);
+
         registry
                 .addEndpoint(WEBSOCKET_ENDPOINT)
                 .addInterceptors(authInterceptor)
                 .setHandshakeHandler(new WebSocketHandshakeHandler())
-                .setAllowedOrigins(ALLOWED_ORIGINS)
+                .setAllowedOrigins(origins)
                 .withSockJS();
     }
 
