@@ -1100,14 +1100,7 @@ export default function ChatPage() {
             <style>{chatCss}</style>
             <aside style={styles.sidebar}>
                 <div style={styles.sidebarHeader}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
-                        <div style={styles.brandMark}>
-                            <svg viewBox="0 0 40 40" width="16" height="16" fill="none" stroke="var(--c-on-accent)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M5 20 h6 l3.2 -9 l4.6 18 l3.2 -9 h6.8" />
-                            </svg>
-                        </div>
-                        <h2 style={styles.sidebarTitle}>Pulse</h2>
-                    </div>
+                    <h2 style={styles.sidebarTitle}>Pulse</h2>
                     <button style={styles.newGroupBtn} className="pulse-newgroup" onClick={() => setShowNewGroup(true)}>
                         New group
                     </button>
@@ -1722,8 +1715,16 @@ const styles = {
         justifyContent: "space-between",
         margin: "4px 8px 12px",
     },
-    sidebarTitle: { fontSize: "19px", fontWeight: 700, letterSpacing: "-0.3px", margin: 0, color: "var(--c-text)" },
-    brandMark: { width: "28px", height: "28px", borderRadius: "9px", background: "linear-gradient(135deg, var(--c-accent), var(--c-accent-hover))", display: "grid", placeItems: "center", flexShrink: 0 },
+    sidebarTitle: {
+        fontSize: "24px",
+        fontWeight: 800,
+        letterSpacing: "-0.6px",
+        margin: 0,
+        background: "linear-gradient(120deg, var(--c-accent), var(--c-accent-hover))",
+        WebkitBackgroundClip: "text",
+        backgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+    },
     newGroupBtn: {
         fontSize: "12.5px",
         fontWeight: 600,

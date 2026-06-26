@@ -197,7 +197,7 @@ export default function GroupMembersPanel({ group, contacts, currentUserId, onCl
                     const isMe = member.userId === currentUserId;
                     return (
                         <div key={member.userId} style={styles.memberRow}>
-                            <span style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
+                            <span style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "15.5px", color: "var(--c-text)", wordBreak: "break-word" }}>
                                 {member.name || "Unknown"}{isMe ? " (you)" : ""}
                                 {member.role === "ADMIN" && <span style={styles.badge}>admin</span>}
                             </span>
@@ -321,42 +321,47 @@ const styles = {
         outline: "none",
         fontSize: "14px",
     },
-    members: { display: "flex", flexDirection: "column", gap: "6px" },
+    members: { display: "flex", flexDirection: "column", gap: "8px" },
     memberRow: {
         display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "8px 6px",
-        borderRadius: "6px",
+        flexDirection: "column",
+        alignItems: "stretch",
+        gap: "10px",
+        padding: "12px 14px",
+        borderRadius: "8px",
         background: "var(--c-incoming)",
         fontSize: "14px",
     },
     badge: {
-        marginLeft: "8px",
         fontSize: "11px",
         color: "var(--c-accent)",
         border: "1px solid var(--c-accent)",
         borderRadius: "4px",
         padding: "1px 5px",
+        flexShrink: 0,
     },
-    memberActions: { display: "flex", gap: "6px" },
+    memberActions: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "6px" },
     smallBtn: {
-        fontSize: "12px",
-        padding: "4px 8px",
+        fontSize: "12.5px",
+        padding: "6px 12px",
         border: "1px solid var(--c-border2)",
-        borderRadius: "5px",
+        borderRadius: "6px",
         background: "transparent",
-        color: "var(--c-text)",
+        color: "var(--c-muted)",
         cursor: "pointer",
+        whiteSpace: "nowrap",
+        flexShrink: 0,
     },
     removeBtn: {
-        fontSize: "12px",
-        padding: "4px 8px",
+        fontSize: "12.5px",
+        padding: "6px 12px",
         border: "none",
-        borderRadius: "5px",
+        borderRadius: "6px",
         background: "#5a2a2a",
         color: "#f3c4c4",
         cursor: "pointer",
+        whiteSpace: "nowrap",
+        flexShrink: 0,
     },
     addSection: { marginTop: "14px" },
     addToggle: {
