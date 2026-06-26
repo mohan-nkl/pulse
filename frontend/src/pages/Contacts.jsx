@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import HomeButton from "../components/HomeButton";
 import {
     listContacts, searchContacts, addContact, addContactByUserId,
     removeContact, updateAlias, syncPhones,
@@ -178,6 +177,11 @@ export default function Contacts() {
     };
 
     const displayName = (c) => c.alias || c.name || "Unknown";
+
+    const openChat = (c) => {
+        sessionStorage.setItem("pulse_selected", JSON.stringify({ type: "dm", userId: c.contactId }));
+        navigate("/chat");
+    };
     const avatarSrc = (name, url) =>
         url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "U")}&size=80&background=1f2c33&color=8696a0`;
 
@@ -188,11 +192,18 @@ export default function Contacts() {
 
                 {}
                 <div style={styles.header}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <HomeButton />
+                    <div style={styles.headerTitleWrap}>
                         <h1 style={styles.title}>Contacts</h1>
+                        {!loading && <span style={styles.count}>{contacts.length}</span>}
                     </div>
                     <div style={styles.headerBtns}>
+                        <button
+                            style={styles.secondaryBtn}
+                            className="pulse-secondary"
+                            onClick={() => navigate("/blocked")}
+                        >
+                            Blocked
+                        </button>
                         <button
                             style={styles.secondaryBtn}
                             className="pulse-secondary"
@@ -209,20 +220,35 @@ export default function Contacts() {
                 {error && <div style={styles.error}>{error}</div>}
                 {success && <div style={styles.successBox}>{success}</div>}
 
-                {}
-                <input
-                    style={styles.search}
-                    type="text"
-                    placeholder="Search by name, alias or phone..."
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                />
+                <div style={styles.searchWrap}>
+                    <svg style={styles.searchIcon} viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m20 20-3.2-3.2" />
+                    </svg>
+                    <input
+                        className="pulse-cinput"
+                        style={styles.search}
+                        type="text"
+                        placeholder="Search by name, alias or phone…"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                    />
+                </div>
 
                 {}
                 {loading ? (
                     <div style={styles.center}>Loading...</div>
                 ) : contacts.length === 0 ? (
-                    <div style={styles.empty}>No contacts yet. Add one!</div>
+                    <div style={styles.empty}>
+                        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="var(--c-muted2)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                        <p style={styles.emptyTitle}>No contacts yet</p>
+                        <p style={styles.emptySub}>Use “+ Add” or “Sync” to find people on Pulse.</p>
+                    </div>
                 ) : (
                     <div style={styles.list}>
                         {contacts.map((c) => (
@@ -257,7 +283,7 @@ export default function Contacts() {
                                         </div>
                                     ) : (
                                         <>
-                                            <span style={styles.contactName}>{displayName(c)}</span>
+                                            <span style={{ ...styles.contactName, cursor: "pointer" }} onClick={() => openChat(c)}>{displayName(c)}</span>
                                             {c.alias && <span style={styles.realName}>{c.name}</span>}
                                         </>
                                     )}
@@ -265,6 +291,11 @@ export default function Contacts() {
                                 </div>
                                 {editingId !== c.id && (
                                     <div style={styles.actions}>
+                                        <button style={styles.actionBtn} className="pulse-action" onClick={() => openChat(c)} title="Message">
+                                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                                            </svg>
+                                        </button>
                                         <button style={styles.actionBtn} className="pulse-action" onClick={() => startEdit(c)} title="Edit alias">
                                             <PencilIcon />
                                         </button>
@@ -377,35 +408,45 @@ const styles = {
     page: {
         display: "flex", justifyContent: "center", alignItems: "flex-start",
         minHeight: "100vh", padding: "40px 16px", boxSizing: "border-box",
-        background: "radial-gradient(1200px 500px at 50% -10%, rgba(0,168,132,0.10), transparent 60%), var(--c-bg)",
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        background: "radial-gradient(1200px 500px at 50% -10%, rgba(74,157,137,0.10), transparent 60%), var(--c-bg)",
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     },
     card: {
-        width: "100%", maxWidth: "480px",
-        background: "var(--c-panel)", border: "1px solid var(--c-border)", borderRadius: "18px",
-        padding: "22px", display: "flex", flexDirection: "column", gap: "14px",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.45)", color: "var(--c-text)",
+        width: "100%", maxWidth: "580px",
+        background: "var(--c-panel)", border: "1px solid var(--c-border)", borderRadius: "20px",
+        padding: "26px 28px", display: "flex", flexDirection: "column", gap: "18px",
+        boxShadow: "var(--c-shadow)", color: "var(--c-text)",
     },
-    header: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" },
-    title: { fontSize: "20px", fontWeight: 600, margin: 0 },
-    headerBtns: { display: "flex", gap: "8px" },
-    primaryBtn: { padding: "8px 15px", fontSize: "14px", fontWeight: 600, background: "#00a884", color: "var(--c-bg)", border: "none", borderRadius: "9px", cursor: "pointer" },
-    secondaryBtn: { padding: "8px 15px", fontSize: "14px", fontWeight: 500, background: "var(--c-surface3)", color: "var(--c-text)", border: "1px solid var(--c-border2)", borderRadius: "9px", cursor: "pointer" },
-    search: { padding: "11px 12px", fontSize: "14px", background: "var(--c-bg)", border: "1px solid var(--c-border2)", borderRadius: "10px", width: "100%", boxSizing: "border-box", color: "var(--c-text)", outline: "none" },
+    header: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" },
+    headerTitleWrap: { display: "flex", alignItems: "center", gap: "10px" },
+    title: { fontSize: "21px", fontWeight: 600, margin: 0 },
+    count: {
+        fontSize: "12.5px", fontWeight: 600, color: "var(--c-muted)",
+        background: "var(--c-surface3)", border: "1px solid var(--c-border)",
+        borderRadius: "999px", padding: "2px 11px", lineHeight: 1.7,
+    },
+    headerBtns: { display: "flex", gap: "10px", alignItems: "center" },
+    primaryBtn: { padding: "9px 17px", fontSize: "14px", fontWeight: 600, background: "var(--c-accent)", color: "var(--c-on-accent)", border: "none", borderRadius: "10px", cursor: "pointer" },
+    secondaryBtn: { padding: "9px 16px", fontSize: "14px", fontWeight: 500, background: "var(--c-surface3)", color: "var(--c-text)", border: "1px solid var(--c-border2)", borderRadius: "10px", cursor: "pointer" },
+    searchWrap: { position: "relative", display: "flex", alignItems: "center" },
+    searchIcon: { position: "absolute", left: "13px", color: "var(--c-muted2)", pointerEvents: "none" },
+    search: { padding: "12px 14px 12px 38px", fontSize: "14px", background: "var(--c-surface)", border: "1px solid var(--c-border2)", borderRadius: "12px", width: "100%", boxSizing: "border-box", color: "var(--c-text)", outline: "none", transition: "border-color 0.15s ease, box-shadow 0.15s ease" },
     center: { textAlign: "center", color: "var(--c-muted)", padding: "20px 0" },
-    empty: { textAlign: "center", color: "var(--c-muted2)", padding: "24px 0", fontSize: "14px" },
+    empty: { display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", color: "var(--c-muted2)", padding: "40px 0" },
+    emptyTitle: { fontSize: "15px", fontWeight: 600, color: "var(--c-muted)", margin: "8px 0 0" },
+    emptySub: { fontSize: "13px", color: "var(--c-muted2)", margin: 0 },
     list: { display: "flex", flexDirection: "column" },
-    contactRow: { display: "flex", alignItems: "center", gap: "12px", padding: "11px 8px", borderBottom: "1px solid var(--c-border)", borderRadius: "10px", transition: "background 0.15s ease" },
-    avatar: { width: "44px", height: "44px", borderRadius: "50%", objectFit: "cover", cursor: "pointer", flexShrink: 0, border: "1px solid var(--c-border2)" },
+    contactRow: { display: "flex", alignItems: "center", gap: "13px", padding: "12px 10px", borderBottom: "1px solid var(--c-border)", borderRadius: "12px", transition: "background 0.15s ease" },
+    avatar: { width: "46px", height: "46px", borderRadius: "50%", objectFit: "cover", cursor: "pointer", flexShrink: 0, border: "1px solid var(--c-border2)" },
     contactInfo: { flex: 1, display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 },
-    contactName: { fontSize: "14.5px", fontWeight: 600 },
+    contactName: { fontSize: "15px", fontWeight: 600 },
     realName: { fontSize: "12px", color: "var(--c-muted)" },
     lastSeen: { fontSize: "12px", color: "var(--c-muted2)" },
     editRow: { display: "flex", gap: "6px", alignItems: "center" },
     editInput: { flex: 1, padding: "7px 9px", fontSize: "13px", background: "var(--c-bg)", border: "1px solid var(--c-border2)", borderRadius: "7px", color: "var(--c-text)", outline: "none" },
-    actions: { display: "flex", gap: "2px" },
-    actionBtn: { background: "none", border: "none", cursor: "pointer", padding: "7px", borderRadius: "8px", color: "var(--c-muted)", display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s ease, color 0.15s ease" },
-    saveBtn: { padding: "6px 12px", fontSize: "12px", fontWeight: 600, background: "#00a884", color: "var(--c-bg)", border: "none", borderRadius: "7px", cursor: "pointer" },
+    actions: { display: "flex", gap: "4px" },
+    actionBtn: { background: "none", border: "none", cursor: "pointer", padding: "8px", borderRadius: "9px", color: "var(--c-muted)", display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s ease, color 0.15s ease" },
+    saveBtn: { padding: "6px 12px", fontSize: "12px", fontWeight: 600, background: "var(--c-accent)", color: "var(--c-on-accent)", border: "none", borderRadius: "7px", cursor: "pointer" },
     cancelBtn: { flex: 1, padding: "11px", fontSize: "14px", fontWeight: 500, background: "transparent", color: "var(--c-text)", border: "1px solid var(--c-border2)", borderRadius: "10px", cursor: "pointer" },
     cancelBtnSm: { padding: "6px 10px", fontSize: "12px", background: "transparent", color: "var(--c-muted)", border: "1px solid var(--c-border2)", borderRadius: "7px", cursor: "pointer" },
     syncPanel: { display: "flex", flexDirection: "column", gap: "10px", borderTop: "1px solid var(--c-border)", paddingTop: "14px" },
@@ -413,7 +454,7 @@ const styles = {
     syncHint: { margin: 0, fontSize: "12px", color: "var(--c-muted)" },
     textarea: { padding: "10px", fontSize: "13px", background: "var(--c-bg)", border: "1px solid var(--c-border2)", borderRadius: "10px", resize: "vertical", fontFamily: "monospace", boxSizing: "border-box", color: "var(--c-text)", outline: "none" },
     syncRow: { display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", borderBottom: "1px solid var(--c-border)" },
-    addBtn: { marginLeft: "auto", padding: "6px 14px", fontSize: "13px", fontWeight: 600, background: "#00a884", color: "var(--c-bg)", border: "none", borderRadius: "7px", cursor: "pointer" },
+    addBtn: { marginLeft: "auto", padding: "6px 14px", fontSize: "13px", fontWeight: 600, background: "var(--c-accent)", color: "var(--c-on-accent)", border: "none", borderRadius: "7px", cursor: "pointer" },
     removeBtn: { marginLeft: "auto", padding: "6px 14px", fontSize: "13px", background: "transparent", color: "#f15c6d", border: "1px solid #f15c6d", borderRadius: "7px", cursor: "pointer" },
     overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: "16px" },
     modal: { background: "var(--c-panel)", border: "1px solid var(--c-border)", borderRadius: "16px", padding: "24px", width: "340px", maxWidth: "100%", display: "flex", flexDirection: "column", gap: "12px", color: "var(--c-text)", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" },
@@ -423,15 +464,16 @@ const styles = {
     input: { padding: "11px 12px", fontSize: "14px", background: "var(--c-bg)", border: "1px solid var(--c-border2)", borderRadius: "9px", color: "var(--c-text)", boxSizing: "border-box", outline: "none" },
     modalBtns: { display: "flex", gap: "8px", marginTop: "8px" },
     error: { background: "rgba(241,92,109,0.12)", color: "#f7919c", padding: "10px 12px", borderRadius: "9px", fontSize: "13px" },
-    successBox: { background: "rgba(0,168,132,0.14)", color: "#38d39f", padding: "10px 12px", borderRadius: "9px", fontSize: "13px" },
+    successBox: { background: "rgba(74,157,137,0.14)", color: "var(--c-accent)", padding: "10px 12px", borderRadius: "9px", fontSize: "13px" },
 };
 
 const css = `
-.pulse-btn:hover { background: #06cf7f !important; }
+.pulse-btn:hover { background: var(--c-accent-hover) !important; }
 .pulse-btn:disabled { opacity: 0.6; cursor: default; }
 .pulse-secondary:hover { background: var(--c-surface4) !important; }
 .pulse-contact-row:hover { background: var(--c-surface3); }
-.pulse-action:hover { background: rgba(0,168,132,0.16); color: #38d39f !important; }
+.pulse-action:hover { background: rgba(74,157,137,0.16); color: var(--c-accent) !important; }
 .pulse-action-danger:hover { background: rgba(241,92,109,0.14); color: #f15c6d !important; }
+.pulse-cinput:focus { border-color: var(--c-accent); box-shadow: 0 0 0 3px rgba(74,157,137,0.18); }
 input::placeholder, textarea::placeholder { color: var(--c-muted2); }
 `;

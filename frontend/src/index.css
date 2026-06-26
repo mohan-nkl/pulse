@@ -1,162 +1,124 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --c-bg: #14171c;
+  --c-panel: #181c22;
+  --c-incoming: #1f242b;
+  --c-surface: #1c2128;
+  --c-surface2: #20262e;
+  --c-surface3: #1a1f25;
+  --c-surface4: #20262e;
+  --c-surface5: #1a1f25;
+  --c-surface6: #20262e;
+  --c-border: #262c34;
+  --c-border2: #2e353e;
+  --c-border3: #353d47;
+  --c-text: #e8eaed;
+  --c-text2: #d3d7dd;
+  --c-text3: #d3d7dd;
+  --c-muted: #8b939d;
+  --c-muted2: #6b727b;
+  --c-tick: #8b939d;
+  --c-tick2: #8b939d;
+  --c-outgoing: #2b5249;
+  --c-accent: #4a9d89;
+  --c-accent-hover: #57ad98;
+  --c-online: #4fb08f;
+  --c-info: #6fa6d6;
+  --c-on-accent: #f3f6f4;
+  --c-elevated: #2b333d;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --c-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.20);
+  --c-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 10px 30px rgba(0, 0, 0, 0.22);
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --c-bg: #f4f1ec;
+  --c-panel: #fbfaf7;
+  --c-incoming: #ffffff;
+  --c-surface: #efece6;
+  --c-surface2: #ffffff;
+  --c-surface3: #efece6;
+  --c-surface4: #eae6df;
+  --c-surface5: #efece6;
+  --c-surface6: #eeeae3;
+  --c-border: #e7e2d9;
+  --c-border2: #ded8cd;
+  --c-border3: #d5cec1;
+  --c-text: #21262b;
+  --c-text2: #2c3137;
+  --c-text3: #2c3137;
+  --c-muted: #6e747b;
+  --c-muted2: #8b9097;
+  --c-tick: #8b9097;
+  --c-tick2: #8b9097;
+  --c-outgoing: #2f6f5e;
+  --c-accent: #2c6b5b;
+  --c-accent-hover: #357d6b;
+  --c-online: #2f9e7e;
+  --c-info: #46739f;
+  --c-on-accent: #f6f8f6;
+  --c-elevated: #ffffff;
+
+  --c-shadow-soft: 0 1px 3px rgba(38, 34, 28, 0.08);
+  --c-shadow: 0 1px 2px rgba(38, 34, 28, 0.10), 0 12px 32px rgba(38, 34, 28, 0.08);
+
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: 0.1px;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-body {
-  margin: 0;
 }
 
 #root {
   width: 1126px;
   max-width: 100%;
   margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  border-inline: 1px solid var(--c-border);
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
+h1, h2, h3 {
+  font-family: var(--font);
+  color: var(--c-text);
+  font-weight: 600;
   margin: 0;
+  letter-spacing: -0.2px;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
+p { margin: 0; }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
-}
+button, input, textarea, select { font-family: var(--font); }
 
-/* ===== Pulse theme tokens (dark = default, light = override) ===== */
-:root {
-  --c-bg: #0b141a;
-  --c-panel: #111b21;
-  --c-incoming: #202c33;
-  --c-surface: #222d34;
-  --c-surface2: #233138;
-  --c-surface3: #16222a;
-  --c-surface4: #1d2a32;
-  --c-surface5: #1d282f;
-  --c-surface6: #1f2c34;
-  --c-border: #1f2c33;
-  --c-border2: #2a3942;
-  --c-border3: #3a4a54;
-  --c-text: #e9edef;
-  --c-text2: #c5cdd3;
-  --c-text3: #cdd6dd;
-  --c-muted: #8696a0;
-  --c-muted2: #5b6b74;
-  --c-tick: #9fc1b8;
-  --c-tick2: #a8c5bd;
-  --c-outgoing: #005c4b;
-}
-:root[data-theme="light"] {
-  --c-bg: #eceff1;
-  --c-panel: #ffffff;
-  --c-incoming: #ffffff;
-  --c-surface: #f0f2f5;
-  --c-surface2: #ffffff;
-  --c-surface3: #f0f2f5;
-  --c-surface4: #e7ebee;
-  --c-surface5: #f0f2f5;
-  --c-surface6: #eef0f2;
-  --c-border: #e3e6e8;
-  --c-border2: #d1d7db;
-  --c-border3: #cfd5da;
-  --c-text: #111b21;
-  --c-text2: #1f2c33;
-  --c-text3: #1f2c33;
-  --c-muted: #667781;
-  --c-muted2: #8696a0;
-  --c-tick: #8696a0;
-  --c-tick2: #8696a0;
-  --c-outgoing: #d9fdd3;
-}
-body { background: var(--c-bg); }
+::selection { background: rgba(127, 142, 138, 0.28); }
 
-body { color: var(--c-text); }
-h1, h2 { color: var(--c-text); }
-code, .counter { color: var(--c-text); background: var(--c-surface); }
+:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+
+* { scrollbar-width: thin; scrollbar-color: var(--c-border2) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--c-border2);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--c-border3); }
+*::-webkit-scrollbar-track { background: transparent; }

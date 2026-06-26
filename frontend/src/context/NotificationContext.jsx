@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useRef, useCallback } from "react";
 import client from "../api/client";
 
 const NotificationContext = createContext(null);
@@ -8,6 +8,13 @@ export function NotificationProvider({ children }) {
     const [unreadPerConversation, setUnreadPerConversation] = useState({});
 
     const [recentNotifications, setRecentNotifications] = useState([]);
+
+    const [eventSeq, setEventSeq] = useState(0);
+    const eventSeqRef = useRef(0);
+    const [chatAckSeq, setChatAckSeq] = useState(0);
+
+    const ackChats = useCallback(() => setChatAckSeq(eventSeqRef.current), []);
+    const chatHasNew = eventSeq > chatAckSeq;
 
     const totalUnread = Object.values(unreadPerConversation)
         .reduce((sum, n) => sum + (n || 0), 0);
@@ -32,6 +39,9 @@ export function NotificationProvider({ children }) {
         setRecentNotifications((prev) =>
             [notification, ...prev].slice(0, 10)
         );
+
+        eventSeqRef.current += 1;
+        setEventSeq(eventSeqRef.current);
     }, []);
 
     const clearConversation = useCallback((conversationId) => {
@@ -45,6 +55,8 @@ export function NotificationProvider({ children }) {
 
     const value = {
         totalUnread,
+        chatHasNew,
+        ackChats,
         unreadPerConversation,
         recentNotifications,
         handleNotification,

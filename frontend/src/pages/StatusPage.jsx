@@ -43,7 +43,7 @@ function StatusMedia({ url, style }) {
 }
 
 function RingAvatar({ name, url, hasUnread, size = 46 }) {
-    const ring = hasUnread ? "#00a884" : "var(--c-border3)";
+    const ring = hasUnread ? "var(--c-accent)" : "var(--c-border3)";
     return (
         <div style={{
             width: size + 6, height: size + 6,
@@ -477,13 +477,12 @@ export default function StatusPage() {
 
     return (
         <div style={p.page}>
+            <style>{css}</style>
 
-            {}
             <div style={p.sidebar}>
 
                 <div style={p.sidebarHeader}>
                     <h2 style={p.title}>Status</h2>
-                    <button style={p.backBtn} onClick={() => navigate(-1)}>← Back</button>
                 </div>
 
                 {loading && <p style={p.hint}>Loading…</p>}
@@ -493,7 +492,7 @@ export default function StatusPage() {
                 <div style={p.section}>
                     <div style={p.label}>MY STATUS</div>
 
-                    <div style={p.row}
+                    <div style={p.row} className="st-row"
                         onClick={() => myStatuses.length > 0 && setViewer(myStatuses)}>
                         <div style={{ position: "relative", flexShrink: 0 }}>
                             <RingAvatar
@@ -531,7 +530,7 @@ export default function StatusPage() {
                     <div style={p.section}>
                         <div style={p.label}>RECENT UPDATES</div>
                         {grouped.map(g => (
-                            <div key={g.authorId} style={p.row}
+                            <div key={g.authorId} style={p.row} className="st-row"
                                 onClick={() => setViewer(
                                     [...g.items].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
                                 )}>
@@ -562,9 +561,13 @@ export default function StatusPage() {
             <div style={p.main}>
                 {myStatuses.length === 0 ? (
                     <div style={p.empty}>
+                        <svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="var(--c-border3)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="9" strokeDasharray="4 3" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
                         <p style={p.emptyText}>No active statuses</p>
-                        <button style={p.postFirstBtn} onClick={() => setComposing(true)}>
-                            + Post your first status
+                        <button style={p.postFirstBtn} className="pulse-btn" onClick={() => setComposing(true)}>
+                            + Post your status now!
                         </button>
                     </div>
                 ) : (
@@ -626,8 +629,8 @@ const v = {
     counter:  { fontSize: 13, color: "var(--c-muted)" },
     replyBar: { display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid var(--c-border2)", paddingTop: 10 },
     replyInput: { flex: 1, background: "var(--c-border2)", border: "1px solid var(--c-border3)", borderRadius: 20, color: "var(--c-text)", fontSize: 14, padding: "8px 14px", outline: "none", fontFamily: "inherit" },
-    replyBtn:   { background: "#00a884", border: "none", borderRadius: 20, color: "#fff", padding: "8px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" },
-    sentMsg:    { fontSize: 13, color: "#00a884", fontWeight: 500, textAlign: "center", width: "100%", padding: "4px 0" },
+    replyBtn:   { background: "var(--c-accent)", border: "none", borderRadius: 20, color: "#fff", padding: "8px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" },
+    sentMsg:    { fontSize: 13, color: "var(--c-accent)", fontWeight: 500, textAlign: "center", width: "100%", padding: "4px 0" },
 };
 
 const c = {
@@ -641,7 +644,7 @@ const c = {
     chars:      { fontSize: 11, color: "var(--c-muted)" },
     err:        { fontSize: 12, color: "#ff6b6b", flex: 1 },
     cancelBtn:  { background: "none", border: "1px solid var(--c-border3)", borderRadius: 6, color: "var(--c-muted)", padding: "6px 10px", cursor: "pointer", fontSize: 12 },
-    postBtn:    { background: "#00a884", border: "none", borderRadius: 6, color: "#fff", padding: "6px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600, marginLeft: "auto" },
+    postBtn:    { background: "var(--c-accent)", border: "none", borderRadius: 6, color: "#fff", padding: "6px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600, marginLeft: "auto" },
 };
 
 const p = {
@@ -649,24 +652,24 @@ const p = {
     sidebar:       { width: 300, borderRight: "1px solid var(--c-surface)", background: "var(--c-panel)", overflowY: "auto", display: "flex", flexDirection: "column" },
     sidebarHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 16px 8px" },
     title:         { fontSize: 18, margin: 0, color: "var(--c-text)" },
-    backBtn:       { background: "none", border: "none", color: "#00a884", fontSize: 13, cursor: "pointer" },
+    backBtn:       { background: "none", border: "none", color: "var(--c-accent)", fontSize: 13, cursor: "pointer" },
     section:       { borderBottom: "1px solid var(--c-surface)", paddingBottom: 8 },
     label:         { fontSize: 11, letterSpacing: "0.5px", color: "var(--c-muted)", padding: "12px 16px 4px" },
     row:           { display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", cursor: "pointer" },
     info:          { display: "flex", flexDirection: "column", gap: 2 },
     rowName:       { fontSize: 15, fontWeight: 500, color: "var(--c-text)" },
     rowSub:        { fontSize: 12, color: "var(--c-muted)" },
-    newBadge:      { color: "#00a884", fontWeight: 600 },
-    addDot:        { position: "absolute", bottom: -2, right: -2, width: 20, height: 20, borderRadius: "50%", background: "#00a884", border: "2px solid var(--c-panel)", color: "#fff", fontSize: 16, lineHeight: "16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 },
+    newBadge:      { color: "var(--c-accent)", fontWeight: 600 },
+    addDot:        { position: "absolute", bottom: -2, right: -2, width: 20, height: 20, borderRadius: "50%", background: "var(--c-accent)", border: "2px solid var(--c-panel)", color: "#fff", fontSize: 16, lineHeight: "16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 },
     hint:          { fontSize: 13, color: "var(--c-muted)", padding: "12px 16px" },
     errText:       { fontSize: 13, color: "#ff6b6b", padding: "12px 16px" },
-    main:          { flex: 1, overflowY: "auto", background: "var(--c-bg)", display: "flex", alignItems: "flex-start", justifyContent: "center" },
+    main:          { flex: 1, overflowY: "auto", background: "radial-gradient(1000px 700px at 85% -8%, rgba(74,157,137,0.06), transparent 60%), var(--c-bg)", display: "flex", alignItems: "flex-start", justifyContent: "center" },
     empty:         { display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginTop: 120 },
     emptyText:     { fontSize: 15, color: "var(--c-muted)", margin: 0 },
-    postFirstBtn:  { background: "#00a884", border: "none", borderRadius: 8, color: "#fff", padding: "12px 24px", fontSize: 15, cursor: "pointer" },
+    postFirstBtn:  { background: "var(--c-accent)", border: "none", borderRadius: 8, color: "#fff", padding: "12px 24px", fontSize: 15, cursor: "pointer" },
     cardList:      { width: "100%", maxWidth: 580, padding: 24, display: "flex", flexDirection: "column", gap: 12 },
-    cardListTitle: { fontSize: 16, color: "var(--c-muted)", margin: "0 0 4px", fontWeight: 400 },
-    card:          { background: "var(--c-surface6)", borderRadius: 10, overflow: "hidden" },
+    cardListTitle: { fontSize: 17, color: "var(--c-text)", margin: "0 0 6px", fontWeight: 600 },
+    card:          { background: "var(--c-panel)", border: "1px solid var(--c-border)", borderRadius: 16, overflow: "hidden", boxShadow: "var(--c-shadow-soft)" },
     cardImg:       { width: "100%", maxHeight: 260, objectFit: "cover", display: "block" },
     cardText:      { fontSize: 16, color: "var(--c-text)", margin: 0, padding: "14px 16px", whiteSpace: "pre-wrap", wordBreak: "break-word" },
     cardMeta:      { display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", fontSize: 12, color: "var(--c-muted)", borderTop: "1px solid var(--c-border2)" },
@@ -679,3 +682,8 @@ const p = {
     chipName:      { fontSize: 13, color: "var(--c-text)", fontWeight: 500 },
     chipTime:      { fontSize: 11, color: "var(--c-muted)" },
 };
+
+const css = `
+.st-row:hover { background: var(--c-surface3); }
+.pulse-btn:hover { background: var(--c-accent-hover) !important; }
+`;
