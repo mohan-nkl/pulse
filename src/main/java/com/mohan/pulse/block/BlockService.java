@@ -2,6 +2,8 @@ package com.mohan.pulse.block;
 
 import com.mohan.pulse.block.dtos.BlockedUserResponse;
 import com.mohan.pulse.common.ApiException;
+import com.mohan.pulse.contact.Contact;
+import com.mohan.pulse.contact.ContactRepository;
 import com.mohan.pulse.storage.StorageService;
 import com.mohan.pulse.user.User;
 import com.mohan.pulse.user.UserRepository;
@@ -20,6 +22,7 @@ public class BlockService {
 
     private final BlockRepository blockRepository;
     private final UserRepository userRepository;
+    private final ContactRepository contactRepository;
     private final StorageService storageService;
 
     @Transactional
@@ -80,22 +83,30 @@ public class BlockService {
 
         List<BlockedUserResponse> blockedUsers = new ArrayList<>();
         for (Block block : blocks) {
-            BlockedUserResponse response = toBlockedUserResponse(block);
+            BlockedUserResponse response = toBlockedUserResponse(block, blockerId);
             blockedUsers.add(response);
         }
         return blockedUsers;
     }
 
-    private BlockedUserResponse toBlockedUserResponse(Block block) {
+    private BlockedUserResponse toBlockedUserResponse(Block block, Long blockerId) {
         User blockedUser = block.getBlocked();
         String avatarUrl = storageService.presignedUrl(blockedUser.getAvatarUrl());
+        String displayName = savedAlias(blockerId, blockedUser.getId());
 
         return new BlockedUserResponse(
                 blockedUser.getId(),
-                blockedUser.getName(),
+                displayName,
                 blockedUser.getPhone(),
                 avatarUrl,
                 block.getCreatedAt());
+    }
+
+    private String savedAlias(Long ownerId, Long contactUserId) {
+        return contactRepository.findByOwner_IdAndContact_Id(ownerId, contactUserId)
+                .map(Contact::getAlias)
+                .filter(alias -> alias != null && !alias.isBlank())
+                .orElse(null);
     }
 
     private User findUserOrThrow(Long userId, String notFoundMessage) {

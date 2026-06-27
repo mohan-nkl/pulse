@@ -180,7 +180,14 @@ public class PresenceService {
     }
 
     private void broadcast(PresenceUpdate update) {
-        messagingTemplate.convertAndSend(PRESENCE_TOPIC, update);
+        Set<Long> hiddenFrom = collectHiddenUserIds(update.getUserId());
+
+        for (Long onlineUserId : connections.keySet()) {
+            if (hiddenFrom.contains(onlineUserId)) {
+                continue;
+            }
+            messagingTemplate.convertAndSendToUser(onlineUserId.toString(), PRESENCE_TOPIC, update);
+        }
     }
 
     private Long userIdOf(Principal principal) {

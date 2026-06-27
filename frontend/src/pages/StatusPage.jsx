@@ -167,8 +167,8 @@ function StatusViewer({ statuses, onClose }) {
 
     if (!current) return null;
 
-    const goNext = () => idx < statuses.length - 1 ? setIdx(idx + 1) : onClose();
-    const goPrev = () => idx > 0 && setIdx(idx - 1);
+    const goNext = () => { if (idx < statuses.length - 1) setIdx(idx + 1); };
+    const goPrev = () => { if (idx > 0) setIdx(idx - 1); };
 
     const handleReply = async () => {
         const text = reply.trim();
@@ -290,13 +290,25 @@ function StatusViewer({ statuses, onClose }) {
                 )}
 
                 {}
-                <div style={v.nav}>
-                    <button style={v.navBtn} onClick={goPrev} disabled={idx === 0}>← Prev</button>
-                    <span style={v.counter}>{idx + 1} / {statuses.length}</span>
-                    <button style={v.navBtn} onClick={goNext}>
-                        {idx < statuses.length - 1 ? "Next →" : "Close"}
-                    </button>
-                </div>
+                {statuses.length > 1 && (
+                    <div style={v.nav}>
+                        <button
+                            style={idx === 0 ? v.navBtnDisabled : v.navBtn}
+                            onClick={goPrev}
+                            disabled={idx === 0}
+                        >
+                            ← Prev
+                        </button>
+                        <span style={v.counter}>{idx + 1} / {statuses.length}</span>
+                        <button
+                            style={idx === statuses.length - 1 ? v.navBtnDisabled : v.navBtn}
+                            onClick={goNext}
+                            disabled={idx === statuses.length - 1}
+                        >
+                            Next →
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -625,7 +637,8 @@ const v = {
     viewerTime:  { fontSize: 11, color: "var(--c-muted)" },
     hint:        { fontSize: 12, color: "var(--c-muted)", margin: "2px 0", padding: "0 2px" },
     nav:      { display: "flex", alignItems: "center", justifyContent: "space-between" },
-    navBtn:   { background: "var(--c-border2)", border: "none", borderRadius: 6, color: "var(--c-text)", padding: "8px 14px", cursor: "pointer", fontSize: 13 },
+    navBtn:   { background: "var(--c-accent)", border: "none", borderRadius: 6, color: "#fff", padding: "8px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600 },
+    navBtnDisabled: { background: "var(--c-border2)", border: "1px solid var(--c-border3)", borderRadius: 6, color: "var(--c-muted)", padding: "8px 16px", cursor: "default", fontSize: 13, fontWeight: 600, opacity: 0.6 },
     counter:  { fontSize: 13, color: "var(--c-muted)" },
     replyBar: { display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid var(--c-border2)", paddingTop: 10 },
     replyInput: { flex: 1, background: "var(--c-border2)", border: "1px solid var(--c-border3)", borderRadius: 20, color: "var(--c-text)", fontSize: 14, padding: "8px 14px", outline: "none", fontFamily: "inherit" },

@@ -43,7 +43,7 @@ export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onRe
                 }
             });
 
-            stompClient.subscribe("/topic/presence", (frame) => {
+            stompClient.subscribe("/user/topic/presence", (frame) => {
                 if (onPresence) {
                     onPresence(JSON.parse(frame.body));
                 }

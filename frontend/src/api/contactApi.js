@@ -15,8 +15,8 @@ export const addContact = async ({ phone, alias }) => {
     return res.data.data;
 };
 
-export const addContactByUserId = async (userId) => {
-    const res = await client.post(`/api/v1/contacts/user/${userId}`);
+export const addContactByUserId = async (userId, alias) => {
+    const res = await client.post(`/api/v1/contacts/user/${userId}`, { alias: alias || null });
     return res.data.data;
 };
 

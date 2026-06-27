@@ -35,6 +35,9 @@ public class ContactService {
 
         List<ContactResponse> responses = new ArrayList<>();
         for (Contact contact : contacts) {
+            if (isBlocked(ownerId, contact)) {
+                continue;
+            }
             responses.add(toResponse(contact));
         }
         return responses;
@@ -51,11 +54,18 @@ public class ContactService {
 
         List<ContactResponse> responses = new ArrayList<>();
         for (Contact contact : ownedContacts) {
+            if (isBlocked(ownerId, contact)) {
+                continue;
+            }
             if (matchesQuery(contact, trimmedQuery)) {
                 responses.add(toResponse(contact));
             }
         }
         return responses;
+    }
+
+    private boolean isBlocked(Long ownerId, Contact contact) {
+        return blockService.isBlockedBetween(ownerId, contact.getContact().getId());
     }
 
     private boolean matchesQuery(Contact contact, String query) {
@@ -89,7 +99,7 @@ public class ContactService {
         return toResponse(savedContact);
     }
 
-    public ContactResponse addContactByUserId(Long ownerId, Long targetUserId) {
+    public ContactResponse addContactByUserId(Long ownerId, Long targetUserId, String alias) {
         User owner = findUserOrThrow(ownerId, "User not found.");
         User contactUser = findUserOrThrow(targetUserId, "User not found.");
 
@@ -99,6 +109,7 @@ public class ContactService {
         Contact contact = new Contact();
         contact.setOwner(owner);
         contact.setContact(contactUser);
+        contact.setAlias(cleanAlias(alias));
 
         Contact savedContact = contactRepository.save(contact);
         return toResponse(savedContact);
@@ -173,6 +184,7 @@ public class ContactService {
                 .id(contact.getId())
                 .contactId(contactUser.getId())
                 .name(contactUser.getName())
+                .phone(contactUser.getPhone())
                 .alias(contact.getAlias())
                 .avatarUrl(avatarUrl)
                 .lastSeen(lastSeen)

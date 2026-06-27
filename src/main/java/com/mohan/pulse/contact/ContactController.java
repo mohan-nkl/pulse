@@ -46,9 +46,13 @@ public class ContactController {
     }
 
     @PostMapping("/user/{userId}")
-    public ResponseEntity<ApiResponse<ContactResponse>> addContactByUserId(@PathVariable Long userId) {
+    public ResponseEntity<ApiResponse<ContactResponse>> addContactByUserId(
+            @PathVariable Long userId,
+            @RequestBody(required = false) UpdateAliasRequest request) {
+        String alias = (request == null) ? null : request.getAlias();
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Contact added.", contactService.addContactByUserId(SecurityUtil.currentUserId(), userId)));
+                .body(ApiResponse.ok("Contact added.",
+                        contactService.addContactByUserId(SecurityUtil.currentUserId(), userId, alias)));
     }
 
     @DeleteMapping("/{id}")

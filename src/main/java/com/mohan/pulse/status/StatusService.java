@@ -36,6 +36,7 @@ public class StatusService {
 
     private final StatusRepository statusRepository;
     private final StatusViewRepository statusViewRepository;
+    private final HiddenStatusRepository hiddenStatusRepository;
     private final UserRepository userRepository;
     private final ContactRepository contactRepository;
     private final ChatService chatService;
@@ -100,7 +101,24 @@ public class StatusService {
         status.setExpiresAt(expiresAt);
 
         Status savedStatus = statusRepository.save(status);
+        hideFromBlockedViewers(savedStatus, authorId);
         return toResponse(savedStatus, authorId);
+    }
+
+    private void hideFromBlockedViewers(Status status, Long authorId) {
+        Set<Long> blockedWithAuthor = blockedOrBlockingIds(authorId);
+        if (blockedWithAuthor.isEmpty()) {
+            return;
+        }
+
+        List<HiddenStatus> rows = new ArrayList<>();
+        for (Long viewerId : blockedWithAuthor) {
+            HiddenStatus hidden = new HiddenStatus();
+            hidden.setStatus(status);
+            hidden.setViewer(userRepository.getReferenceById(viewerId));
+            rows.add(hidden);
+        }
+        hiddenStatusRepository.saveAll(rows);
     }
 
     @Transactional(readOnly = true)
@@ -132,7 +150,37 @@ public class StatusService {
         }
 
         List<Status> statuses = statusRepository.findActiveByAuthorIds(visibleAuthorIds, Instant.now());
-        return toResponses(statuses, userId);
+        List<Status> visibleStatuses = removeHiddenForViewer(statuses, userId);
+        return toResponses(visibleStatuses, userId);
+    }
+
+    private List<Status> removeHiddenForViewer(List<Status> statuses, Long viewerId) {
+        if (statuses.isEmpty()) {
+            return statuses;
+        }
+
+        List<Long> statusIds = new ArrayList<>();
+        for (Status status : statuses) {
+            statusIds.add(status.getId());
+        }
+
+        Set<Long> hiddenIds = new HashSet<>();
+        for (HiddenStatus hidden : hiddenStatusRepository.findByViewer_IdAndStatus_IdIn(viewerId, statusIds)) {
+            hiddenIds.add(hidden.getStatus().getId());
+        }
+
+        if (hiddenIds.isEmpty()) {
+            return statuses;
+        }
+
+        List<Status> visible = new ArrayList<>();
+        for (Status status : statuses) {
+            boolean hidden = hiddenIds.contains(status.getId());
+            if (!hidden) {
+                visible.add(status);
+            }
+        }
+        return visible;
     }
 
     @Transactional
@@ -211,6 +259,7 @@ public class StatusService {
             throw new ApiException(HttpStatus.NOT_FOUND, "Status not found or you are not the author.");
         }
         statusViewRepository.deleteByStatusId(statusId);
+        hiddenStatusRepository.deleteByStatus_Id(statusId);
         statusRepository.delete(maybeStatus.get());
     }
 

@@ -12,6 +12,7 @@ public class ContactResponse {
     private Long id;
     private Long contactId;
     private String name;
+    private String phone;
     private String alias;
     private String avatarUrl;
     private Instant lastSeen;

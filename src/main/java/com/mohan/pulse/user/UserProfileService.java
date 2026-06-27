@@ -2,6 +2,8 @@ package com.mohan.pulse.user;
 
 import com.mohan.pulse.block.BlockService;
 import com.mohan.pulse.common.ApiException;
+import com.mohan.pulse.contact.Contact;
+import com.mohan.pulse.contact.ContactRepository;
 import com.mohan.pulse.storage.StorageService;
 import com.mohan.pulse.user.dtos.UpdateProfileRequest;
 import com.mohan.pulse.user.dtos.UserProfileResponse;
@@ -22,6 +24,7 @@ public class UserProfileService {
     private final StorageService storageService;
     private final BlockService blockService;
     private final PresenceService presenceService;
+    private final ContactRepository contactRepository;
 
     private static final List<String> ALLOWED_TYPES = List.of("image/jpeg", "image/png", "image/webp");
     private static final long MAX_SIZE = 5 * 1024 * 1024;
@@ -45,11 +48,18 @@ public class UserProfileService {
 
         return new UserProfileResponse(
                 owner.getId(),
-                owner.getName(),
+                displayNameFor(viewerId, owner),
                 owner.getAbout(),
                 avatarUrl,
                 lastSeen,
                 owner.getCreatedAt());
+    }
+
+    private String displayNameFor(Long viewerId, User owner) {
+        return contactRepository.findByOwner_IdAndContact_Id(viewerId, owner.getId())
+                .map(Contact::getAlias)
+                .filter(alias -> alias != null && !alias.isBlank())
+                .orElse(owner.getPhone());
     }
 
     public UserProfileResponse updateProfile(Long userId, UpdateProfileRequest request) {
