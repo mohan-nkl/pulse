@@ -10,7 +10,8 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 
 @Configuration
 @EnableWebSocketMessageBroker
@@ -29,16 +30,22 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        String[] origins = Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim)
-                .filter(origin -> !origin.isEmpty())
-                .toArray(String[]::new);
+        String[] originValues = allowedOrigins.split(",");
+
+        List<String> origins = new ArrayList<>();
+        for (String value : originValues) {
+            String origin = value.trim();
+            if (!origin.isEmpty()) {
+                origins.add(origin);
+            }
+        }
+        String[] allowedOriginsArray = origins.toArray(new String[0]);
 
         registry
                 .addEndpoint(WEBSOCKET_ENDPOINT)
                 .addInterceptors(authInterceptor)
                 .setHandshakeHandler(new WebSocketHandshakeHandler())
-                .setAllowedOrigins(origins)
+                .setAllowedOrigins(allowedOriginsArray)
                 .withSockJS();
     }
 

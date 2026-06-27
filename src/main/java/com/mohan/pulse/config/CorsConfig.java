@@ -7,7 +7,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -38,9 +38,15 @@ public class CorsConfig {
     }
 
     private static List<String> parseOrigins(String csv) {
-        return Arrays.stream(csv.split(","))
-                .map(String::trim)
-                .filter(origin -> !origin.isEmpty())
-                .toList();
+        String[] parts = csv.split(",");
+
+        List<String> origins = new ArrayList<>();
+        for (String part : parts) {
+            String origin = part.trim();
+            if (!origin.isEmpty()) {
+                origins.add(origin);
+            }
+        }
+        return origins;
     }
 }
