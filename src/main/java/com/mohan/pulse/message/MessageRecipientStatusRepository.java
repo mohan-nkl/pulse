@@ -41,4 +41,13 @@ public interface MessageRecipientStatusRepository
           AND mrs.message.conversationType = com.mohan.pulse.message.ConversationType.DIRECT
         """)
     List<String> findDirectConversationIdsForRecipient(@Param("userId") Long userId);
+
+    @Query("""
+        SELECT mrs.message.id
+        FROM MessageRecipientStatus mrs
+        WHERE mrs.recipient.id = :recipientId
+          AND mrs.message.id IN :messageIds
+        """)
+    List<Long> findDeliveredMessageIds(@Param("recipientId") Long recipientId,
+                                       @Param("messageIds") List<Long> messageIds);
 }

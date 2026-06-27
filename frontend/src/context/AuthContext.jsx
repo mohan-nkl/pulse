@@ -68,14 +68,14 @@ export function AuthProvider({ children }) {
         setUser(null);
     }, []);
 
-    const logout = async () => {
+    const logout = useCallback(async () => {
         try {
             await client.post("/api/v1/auth/logout");
         } catch (_) {
 
         }
         clearSession();
-    };
+    }, [clearSession]);
 
     const updateUser = (changes) => {
         setUser((prev) => {

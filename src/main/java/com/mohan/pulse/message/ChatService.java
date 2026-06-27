@@ -126,7 +126,7 @@ public class ChatService {
         Message saved = messageRepository.save(message);
 
         List<GroupMember> members = groupMemberRepository.findByGroupId(request.getGroupId());
-        List<Long> recipientIds = recipientIdsExcludingSender(members, senderId);
+        List<Long> recipientIds = deliverableRecipientIds(members, senderId);
 
         messageStatusService.createRecipientStatuses(saved, recipientIds);
 
@@ -134,41 +134,38 @@ public class ChatService {
         ChatMessageResponse response =
                 toResponse(saved, sender.getId(), conversationId, null, status.name());
 
-        deliverGroupMessage(members, senderId, response);
-
+        String groupName = members.get(0).getGroup().getName();
         for (Long recipientId : recipientIds) {
-            notificationService.sendNotification(
-                    recipientId, conversationId, sender.getName(), request.getContent());
+            sendTo(recipientId, response);
+
+            String senderLabel = notificationNameFor(recipientId, sender);
+            notificationService.sendGroupNotification(
+                    recipientId, conversationId, groupName, senderLabel, request.getContent());
         }
+
+        sendTo(sender.getId(), response);
 
         return response;
     }
 
-    private List<Long> recipientIdsExcludingSender(List<GroupMember> members, Long senderId) {
+    private List<Long> deliverableRecipientIds(List<GroupMember> members, Long senderId) {
         List<Long> recipientIds = new ArrayList<>();
         for (GroupMember member : members) {
             Long memberId = member.getUser().getId();
 
             boolean isSender = memberId.equals(senderId);
-            if (!isSender) {
-                recipientIds.add(memberId);
-            }
-        }
-        return recipientIds;
-    }
-
-    private void deliverGroupMessage(List<GroupMember> members, Long senderId, ChatMessageResponse response) {
-        for (GroupMember member : members) {
-            Long memberId = member.getUser().getId();
-
-            boolean isSender = memberId.equals(senderId);
-            boolean memberBlockedSender = !isSender && blockService.hasBlocked(memberId, senderId);
-            if (memberBlockedSender) {
+            if (isSender) {
                 continue;
             }
 
-            sendTo(memberId, response);
+            boolean blocked = blockService.isBlockedBetween(senderId, memberId);
+            if (blocked) {
+                continue;
+            }
+
+            recipientIds.add(memberId);
         }
+        return recipientIds;
     }
 
     private void validateContent(String messageType, String content, String mediaUrl) {

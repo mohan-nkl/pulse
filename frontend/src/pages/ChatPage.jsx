@@ -109,6 +109,16 @@ function Lightbox({ url, onClose }) {
     );
 }
 
+function fileNameFromUrl(url) {
+    if (!url) return "file";
+    const last = url.split("/").pop().split("?")[0];
+    try {
+        return decodeURIComponent(last) || "file";
+    } catch {
+        return last || "file";
+    }
+}
+
 function MessageContent({ message, onImageClick }) {
     const { type, mediaUrl, content } = message;
 
@@ -145,9 +155,9 @@ function MessageContent({ message, onImageClick }) {
     }
 
     if (type === "FILE") {
-        const filename = mediaUrl ? mediaUrl.split("/").pop() : "file";
+        const filename = fileNameFromUrl(mediaUrl);
         return (
-            <div>
+            <div style={styles.fileWrap}>
                 <a href={mediaUrl} target="_blank" rel="noreferrer" style={styles.fileLink}>
                     📎 {filename}
                 </a>
@@ -256,7 +266,8 @@ export default function ChatPage() {
     const [lastMessageAt, setLastMessageAt] = useState({});
     const [chatSearch, setChatSearch] = useState("");
     const [hidden, setHidden] = useState({});
-    const [hoveredChatId, setHoveredChatId] = useState(null);
+    const [savingContact, setSavingContact] = useState(false);
+    const [saveAlias, setSaveAlias] = useState("");
     const [pendingSelect] = useState(() => {
         try {
             const saved = sessionStorage.getItem("pulse_selected");
@@ -629,7 +640,7 @@ export default function ChatPage() {
 
             const mapped = (response.data.data || []).map((c) => ({
                 userId: c.contactId,
-                name: c.alias || c.name,
+                name: c.alias || c.phone,
                 avatarUrl: c.avatarUrl,
             }));
             setContacts(mapped);
@@ -719,7 +730,6 @@ export default function ChatPage() {
         }
 
         setHidden((previous) => ({ ...previous, [conversationId]: true }));
-        setHoveredChatId(null);
         setHeaderMenuOpen(false);
 
         const justDeletedOpenChat = openConversationIdRef.current === conversationId;
@@ -740,17 +750,35 @@ export default function ChatPage() {
         }
     };
 
-    const handleSaveContact = async () => {
+    const openSaveContact = () => {
         if (selected?.type !== "dm") return;
+        setSaveAlias("");
+        setSavingContact(true);
+        setHeaderMenuOpen(false);
+    };
+
+    const confirmSaveContact = async () => {
+        if (selected?.type !== "dm") return;
+        const alias = saveAlias.trim();
         try {
-            const response = await client.post(`/api/v1/contacts/user/${selected.userId}`);
+            const response = await client.post(`/api/v1/contacts/user/${selected.userId}`, {
+                alias: alias || null,
+            });
             const saved = response.data.data;
-            setHeaderMenuOpen(false);
-            await loadContacts();
+            setSavingContact(false);
+            const freshContacts = await loadContacts();
+            contactsRef.current = freshContacts;
             loadPartners();
-            setSelected((prev) => (prev ? { ...prev, name: saved.name } : prev));
+            const displayName = saved.alias || saved.phone;
+            setSelected((prev) => (prev ? { ...prev, name: displayName } : prev));
         } catch {
         }
+    };
+
+    const reloadChatLists = async () => {
+        const freshContacts = await loadContacts();
+        contactsRef.current = freshContacts;
+        loadPartners();
     };
 
     const handleBlock = async () => {
@@ -759,6 +787,7 @@ export default function ChatPage() {
             await blockUser(selected.userId);
             setIsBlocked(true);
             setHeaderMenuOpen(false);
+            reloadChatLists();
         } catch {
             alert("Could not block this contact. Please try again.");
         }
@@ -770,6 +799,7 @@ export default function ChatPage() {
             await unblockUser(selected.userId);
             setIsBlocked(false);
             setHeaderMenuOpen(false);
+            reloadChatLists();
         } catch {
             alert("Could not unblock this contact. Please try again.");
         }
@@ -1130,8 +1160,6 @@ export default function ChatPage() {
                                     : {}),
                             }}
                             onClick={() => openGroup(group)}
-                            onMouseEnter={() => setHoveredChatId(gConvId)}
-                            onMouseLeave={() => setHoveredChatId((id) => (id === gConvId ? null : id))}
                         >
                         <span style={styles.itemRow}>
                             <span style={styles.itemLeft}>
@@ -1144,18 +1172,6 @@ export default function ChatPage() {
                             </span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
                                 {unread > 0 && <span style={styles.unreadBadge}>{unread}</span>}
-                                {hoveredChatId === gConvId && (
-                                    <span
-                                        style={styles.rowDelete}
-                                        title="Delete chat"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteConversation({ type: "group", id: group.id });
-                                        }}
-                                    >
-                                        🗑
-                                    </span>
-                                )}
                             </span>
                         </span>
                         </button>
@@ -1177,8 +1193,6 @@ export default function ChatPage() {
                                     : {}),
                             }}
                             onClick={() => openDirect(contact)}
-                            onMouseEnter={() => setHoveredChatId(cConvId)}
-                            onMouseLeave={() => setHoveredChatId((id) => (id === cConvId ? null : id))}
                         >
                         <span style={styles.itemRow}>
                             <span style={styles.itemLeft}>
@@ -1193,18 +1207,6 @@ export default function ChatPage() {
                             </span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
                                 {unread > 0 && <span style={styles.unreadBadge}>{unread}</span>}
-                                {hoveredChatId === cConvId && (
-                                    <span
-                                        style={styles.rowDelete}
-                                        title="Delete chat"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteConversation({ type: "dm", userId: contact.userId });
-                                        }}
-                                    >
-                                        🗑
-                                    </span>
-                                )}
                                 <span
                                     style={{
                                         ...styles.dot,
@@ -1322,7 +1324,7 @@ export default function ChatPage() {
                                             {!contacts.some((c) => c.userId === selected.userId) && (
                                                 <button
                                                     style={styles.headerMenuItem}
-                                                    onClick={handleSaveContact}
+                                                    onClick={openSaveContact}
                                                 >
                                                     Save contact
                                                 </button>
@@ -1675,6 +1677,33 @@ export default function ChatPage() {
                 />
             )}
 
+            {savingContact && selected?.type === "dm" && (
+                <div style={styles.saveOverlay} onClick={() => setSavingContact(false)}>
+                    <div style={styles.saveModal} onClick={(e) => e.stopPropagation()}>
+                        <h2 style={styles.saveTitle}>Save contact</h2>
+                        <p style={styles.saveSub}>{selected.name}</p>
+                        <label style={styles.saveLabel}>Name this contact</label>
+                        <input
+                            style={styles.saveInput}
+                            type="text"
+                            placeholder="e.g. Mom"
+                            value={saveAlias}
+                            onChange={(e) => setSaveAlias(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && confirmSaveContact()}
+                            autoFocus
+                        />
+                        <div style={styles.saveBtns}>
+                            <button style={styles.saveCancelBtn} onClick={() => setSavingContact(false)}>
+                                Cancel
+                            </button>
+                            <button style={styles.saveConfirmBtn} onClick={confirmSaveContact}>
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
 
             {picMessage && <div style={styles.picToast}>{picMessage}</div>}
@@ -1753,12 +1782,6 @@ const styles = {
         color: "var(--c-text)",
         outline: "none",
         transition: "border-color 0.15s ease, box-shadow 0.15s ease",
-    },
-    rowDelete: {
-        cursor: "pointer",
-        fontSize: "14px",
-        lineHeight: 1,
-        opacity: 0.85,
     },
     item: {
         display: "block",
@@ -1880,6 +1903,32 @@ const styles = {
         color: "var(--c-text)",
         fontSize: "14px",
         cursor: "pointer",
+    },
+    saveOverlay: {
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: "16px",
+    },
+    saveModal: {
+        background: "var(--c-panel)", border: "1px solid var(--c-border)", borderRadius: "16px",
+        padding: "24px", width: "340px", maxWidth: "100%", display: "flex", flexDirection: "column",
+        gap: "10px", color: "var(--c-text)", boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+    },
+    saveTitle: { margin: 0, fontSize: "18px", fontWeight: 600 },
+    saveSub: { margin: 0, fontSize: "14px", color: "var(--c-muted)" },
+    saveLabel: { fontSize: "13px", color: "var(--c-muted)", marginTop: "6px" },
+    saveInput: {
+        padding: "11px 12px", fontSize: "14px", background: "var(--c-bg)",
+        border: "1px solid var(--c-border2)", borderRadius: "9px", color: "var(--c-text)",
+        boxSizing: "border-box", outline: "none",
+    },
+    saveBtns: { display: "flex", gap: "8px", marginTop: "10px" },
+    saveCancelBtn: {
+        flex: 1, padding: "11px", fontSize: "14px", fontWeight: 500, background: "transparent",
+        color: "var(--c-text)", border: "1px solid var(--c-border2)", borderRadius: "10px", cursor: "pointer",
+    },
+    saveConfirmBtn: {
+        flex: 1, padding: "11px", fontSize: "14px", fontWeight: 600, background: "var(--c-accent)",
+        color: "var(--c-on-accent)", border: "none", borderRadius: "10px", cursor: "pointer",
     },
     presenceLine: { fontSize: "12px", color: "var(--c-muted)", marginTop: "1px", minHeight: "14px" },
     infoBtn: {
@@ -2118,8 +2167,17 @@ const styles = {
     },
     mediaVideo: { maxWidth: "280px", borderRadius: "8px", display: "block", marginBottom: "4px" },
     mediaAudio: { maxWidth: "260px", display: "block", marginBottom: "4px" },
-    fileLink: { color: "var(--c-info)", textDecoration: "none", display: "block", marginBottom: "4px" },
-    caption: { margin: "4px 0 0", fontSize: "13px" },
+    fileWrap: { maxWidth: "100%", minWidth: 0 },
+    fileLink: {
+        color: "inherit",
+        textDecoration: "underline",
+        display: "block",
+        marginBottom: "4px",
+        maxWidth: "100%",
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
+    },
+    caption: { margin: "4px 0 0", fontSize: "13px", overflowWrap: "anywhere", wordBreak: "break-word" },
 
     composer: {
         display: "flex",

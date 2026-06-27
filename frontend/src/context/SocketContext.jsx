@@ -54,6 +54,8 @@ export function SocketProvider({ children }) {
     useEffect(() => {
         if (!user) {
 
+            setActiveToast(null);
+
             if (connectedRef.current) {
                 disconnectWebSocket();
                 connectedRef.current = false;

@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import AuthLayout from "../components/AuthLayout";
 
 export default function Login() {
-    const { login } = useAuth();
+    const { login, isAuthenticated, logout } = useAuth();
     const navigate = useNavigate();
 
     const [phone, setPhone] = useState("");
@@ -12,6 +12,13 @@ export default function Login() {
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [notice, setNotice] = useState("");
+    const [wasAuthedAtMount] = useState(isAuthenticated);
+
+    useEffect(() => {
+        if (wasAuthedAtMount) {
+            logout();
+        }
+    }, [wasAuthedAtMount, logout]);
 
     useEffect(() => {
         if (sessionStorage.getItem("pulse_logout_reason") === "expired") {

@@ -176,7 +176,7 @@ export default function Contacts() {
         return new Date(iso).toLocaleDateString();
     };
 
-    const displayName = (c) => c.alias || c.name || "Unknown";
+    const displayName = (c) => c.alias || c.phone || "Unknown";
 
     const openChat = (c) => {
         sessionStorage.setItem("pulse_selected", JSON.stringify({ type: "dm", userId: c.contactId }));
@@ -254,7 +254,7 @@ export default function Contacts() {
                         {contacts.map((c) => (
                             <div key={c.id} style={styles.contactRow} className="pulse-contact-row">
                                 <img
-                                    src={avatarSrc(c.name, c.avatarUrl)}
+                                    src={avatarSrc(displayName(c), c.avatarUrl)}
                                     alt=""
                                     style={styles.avatar}
                                     onClick={() => navigate(`/users/${c.contactId}/profile`)}
@@ -284,7 +284,7 @@ export default function Contacts() {
                                     ) : (
                                         <>
                                             <span style={{ ...styles.contactName, cursor: "pointer" }} onClick={() => openChat(c)}>{displayName(c)}</span>
-                                            {c.alias && <span style={styles.realName}>{c.name}</span>}
+                                            {c.alias && <span style={styles.realName}>{c.phone}</span>}
                                         </>
                                     )}
                                     <span style={styles.lastSeen}>{formatLastSeen(c.lastSeen)}</span>

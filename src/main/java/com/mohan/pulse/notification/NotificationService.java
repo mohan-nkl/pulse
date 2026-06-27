@@ -23,24 +23,36 @@ public class NotificationService {
                                               String conversationId,
                                               String senderName,
                                               String messageContent) {
+        pushMessageNotification(recipientId, conversationId, senderName, buildPreview(messageContent));
+    }
 
+    public synchronized void sendGroupNotification(Long recipientId,
+                                                   String conversationId,
+                                                   String groupName,
+                                                   String senderName,
+                                                   String messageContent) {
+        String preview = senderName + ": " + buildPreview(messageContent);
+        pushMessageNotification(recipientId, conversationId, groupName, preview);
+    }
+
+    private void pushMessageNotification(Long recipientId,
+                                         String conversationId,
+                                         String title,
+                                         String preview) {
         Map<String, Integer> userUnread = unreadFor(recipientId);
 
         int currentCount = userUnread.getOrDefault(conversationId, 0);
         int newCount = currentCount + 1;
         userUnread.put(conversationId, newCount);
 
-        int conversationUnread = newCount;
         int totalUnread = totalUnreadFor(userUnread);
-
-        String preview = buildPreview(messageContent);
 
         NotificationDto notification = new NotificationDto(
                 "MESSAGE",
                 conversationId,
-                senderName,
+                title,
                 preview,
-                conversationUnread,
+                newCount,
                 totalUnread);
 
         messagingTemplate.convertAndSendToUser(

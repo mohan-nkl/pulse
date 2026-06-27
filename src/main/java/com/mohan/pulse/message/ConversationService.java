@@ -46,9 +46,9 @@ public class ConversationService {
     private final MessageRecipientStatusRepository recipientStatusRepository;
     private final DeletedMessageRepository deletedMessageRepository;
     private final StorageService storageService;
-    private final BlockService blockService;
     private final UserRepository userRepository;
     private final ClearedConversationRepository clearedConversationRepository;
+    private final BlockService blockService;
 
     public PagedMessages getDirectConversation(Long currentUserId,
                                                Long otherUserId,
@@ -102,6 +102,8 @@ public class ConversationService {
             }
             partnerIds.add(otherUserId);
         }
+
+        partnerIds.removeIf(partnerId -> blockService.isBlockedBetween(currentUserId, partnerId));
 
         List<ConversationPartner> partners = new ArrayList<>();
         for (User user : userRepository.findAllById(partnerIds)) {
@@ -225,11 +227,12 @@ public class ConversationService {
         List<Message> oldestFirst = new ArrayList<>(newestFirst);
         Collections.reverse(oldestFirst);
 
-        List<MessageResponse> responses = toResponses(oldestFirst, currentUserId, clearedAt);
+        List<MessageResponse> responses = toResponses(oldestFirst, currentUserId, clearedAt, conversationId);
         return new PagedMessages(responses, hasMore);
     }
 
-    private List<MessageResponse> toResponses(List<Message> messages, Long currentUserId, Instant clearedAt) {
+    private List<MessageResponse> toResponses(List<Message> messages, Long currentUserId, Instant clearedAt,
+                                              String conversationId) {
         if (messages.isEmpty()) {
             return List.of();
         }
@@ -237,7 +240,10 @@ public class ConversationService {
         List<Long> messageIds = collectIds(messages);
 
         Set<Long> hiddenMessageIds = hiddenMessageIdsFor(currentUserId, messageIds);
-        Set<Long> blockedAuthorIds = new HashSet<>(blockService.blockedIdsOf(currentUserId));
+        boolean directConversation = ConversationUtil.isDirect(conversationId);
+        Set<Long> deliveredToMe = new HashSet<>(
+                recipientStatusRepository.findDeliveredMessageIds(currentUserId, messageIds));
+        Instant joinedGroupAt = joinTimeFor(conversationId, currentUserId);
 
         Map<Long, MessageStatusUpdate> statusByMessageId = messageStatusService.statusForMessages(messageIds);
         Map<Long, List<ReactionEntry>> reactionsByMessageId = reactionService.reactionsForMessages(messageIds);
@@ -245,18 +251,13 @@ public class ConversationService {
 
         List<MessageResponse> responses = new ArrayList<>();
         for (Message message : messages) {
-            boolean clearedForMe = (clearedAt != null && !message.getCreatedAt().isAfter(clearedAt));
-            if (clearedForMe) {
+            if (clearedForMe(message, clearedAt)) {
                 continue;
             }
-
-            boolean hiddenForMe = hiddenMessageIds.contains(message.getId());
-            if (hiddenForMe) {
+            if (hiddenMessageIds.contains(message.getId())) {
                 continue;
             }
-
-            boolean authorBlocked = blockedAuthorIds.contains(message.getSender().getId());
-            if (authorBlocked) {
+            if (hiddenByBlock(message, currentUserId, directConversation, deliveredToMe, joinedGroupAt)) {
                 continue;
             }
 
@@ -266,6 +267,37 @@ public class ConversationService {
             responses.add(buildMessageResponse(message, status, reactions, repliedStatusById));
         }
         return responses;
+    }
+
+    private boolean clearedForMe(Message message, Instant clearedAt) {
+        return clearedAt != null && !message.getCreatedAt().isAfter(clearedAt);
+    }
+
+    private Instant joinTimeFor(String conversationId, Long viewerId) {
+        if (!ConversationUtil.isGroup(conversationId)) {
+            return null;
+        }
+        Long groupId = ConversationUtil.groupIdFrom(conversationId);
+        return groupMemberRepository.findByGroupIdAndUserId(groupId, viewerId)
+                .map(GroupMember::getJoinedAt)
+                .orElse(null);
+    }
+
+    private boolean hiddenByBlock(Message message, Long viewerId, boolean directConversation,
+                                  Set<Long> deliveredMessageIds, Instant viewerJoinedGroupAt) {
+        boolean ownMessage = message.getSender().getId().equals(viewerId);
+        boolean deliveredToViewer = deliveredMessageIds.contains(message.getId());
+        if (ownMessage || deliveredToViewer) {
+            return false;
+        }
+        if (directConversation) {
+            return true;
+        }
+        return wasMemberWhenSent(message, viewerJoinedGroupAt);
+    }
+
+    private boolean wasMemberWhenSent(Message message, Instant viewerJoinedGroupAt) {
+        return viewerJoinedGroupAt != null && !message.getCreatedAt().isBefore(viewerJoinedGroupAt);
     }
 
     private MessageResponse buildMessageResponse(Message message,

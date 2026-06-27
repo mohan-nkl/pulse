@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import AuthLayout from "../components/AuthLayout";
 
 export default function Signup() {
-    const { signup } = useAuth();
+    const { signup, isAuthenticated, logout } = useAuth();
     const navigate = useNavigate();
 
     const [name, setName] = useState("");
@@ -12,6 +12,13 @@ export default function Signup() {
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [wasAuthedAtMount] = useState(isAuthenticated);
+
+    useEffect(() => {
+        if (wasAuthedAtMount) {
+            logout();
+        }
+    }, [wasAuthedAtMount, logout]);
 
     const handleSubmit = async (event) => {
         event.preventDefault();

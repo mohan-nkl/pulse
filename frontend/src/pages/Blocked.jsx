@@ -50,7 +50,6 @@ export default function Blocked() {
                                 <img src={avatarSrc(b)} alt="" style={styles.avatar} />
                                 <div style={styles.info}>
                                     <span style={styles.name}>{b.name || b.phone || "Unknown"}</span>
-                                    {b.phone && <span style={styles.phone}>{b.phone}</span>}
                                 </div>
                                 <button
                                     style={styles.unblockBtn}
@@ -101,7 +100,6 @@ const styles = {
     avatar: { width: "42px", height: "42px", borderRadius: "50%", objectFit: "cover", flex: "0 0 auto" },
     info: { display: "flex", flexDirection: "column", flex: 1, minWidth: 0 },
     name: { fontSize: "15px", fontWeight: 600, color: "var(--c-text)" },
-    phone: { fontSize: "13px", color: "var(--c-muted)", marginTop: "1px" },
     unblockBtn: {
         flex: "0 0 auto",
         padding: "7px 16px",
