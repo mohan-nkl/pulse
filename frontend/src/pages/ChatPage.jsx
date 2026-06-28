@@ -68,7 +68,7 @@ function groupHeaderLabel(memberNames, presence, currentUserId) {
     return online > 0 ? `${online} online` : `${ids.length} members`;
 }
 
-function headerStatusLine(selected, typingUserIds, memberNames, presence, currentUserId) {
+function headerStatusLine(selected, typingUserIds, memberNames, presence, currentUserId, contacts) {
     if (selected.type === "dm") {
 
         if (typingUserIds.length > 0) return "typing...";
@@ -77,7 +77,10 @@ function headerStatusLine(selected, typingUserIds, memberNames, presence, curren
 
     const others = typingUserIds.filter((id) => id !== currentUserId);
     if (others.length > 0) {
-        const names = others.map((id) => memberNames[id] || "Someone");
+        const aliasById = {};
+        contacts.forEach((c) => { aliasById[c.userId] = c.name; });
+        const nameFor = (id) => aliasById[id] || memberNames[id] || "Someone";
+        const names = others.map(nameFor);
         if (names.length === 1) return `${names[0]} is typing...`;
         if (names.length === 2) return `${names[0]} and ${names[1]} are typing...`;
         return `${names[0]}, ${names[1]} and ${names.length - 2} others are typing...`;
@@ -1279,7 +1282,8 @@ export default function ChatPage() {
                                             typingHere,
                                             memberNames,
                                             presence,
-                                            currentUserId
+                                            currentUserId,
+                                            contacts
                                         )}
                                     </span>
                                 </div>

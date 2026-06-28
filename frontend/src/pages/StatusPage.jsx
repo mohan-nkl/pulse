@@ -23,6 +23,16 @@ function timeAgo(iso) {
     return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function timeUntil(iso) {
+    if (!iso) return "";
+    const mins = Math.floor((new Date(iso) - Date.now()) / 60000);
+    if (mins <= 0) return "soon";
+    if (mins < 60) return `${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)  return `${hrs}h`;
+    return `${Math.floor(hrs / 24)}d`;
+}
+
 function avatarSrc(name, url) {
     return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "U")}&size=96&background=2a3942&color=fff`;
 }
@@ -103,7 +113,7 @@ function StatusCard({ status, onDelete }) {
                 <span>{timeAgo(status.createdAt)}</span>
                 <span>👁 {viewers.length > 0 ? viewers.length : (status.viewCount ?? 0)}</span>
                 <span style={{ color: "var(--c-border3)", marginLeft: "auto" }}>
-                    expires {timeAgo(new Date(status.expiresAt))} from now
+                    expires in {timeUntil(status.expiresAt)}
                 </span>
                 <button style={p.delBtn} onClick={() => onDelete(status.id)} title="Delete">🗑</button>
             </div>

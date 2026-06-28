@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import NotificationToast from "../components/NotificationToast";
 import { useAuth } from "./AuthContext";
 import { useNotification } from "./NotificationContext";
@@ -15,6 +15,7 @@ export function SocketProvider({ children }) {
     const { user } = useAuth();
     const { handleNotification, refreshUnreadCounts } = useNotification();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [presence, setPresence] = useState({});
 
@@ -165,11 +166,13 @@ export function SocketProvider({ children }) {
         <SocketContext.Provider value={value}>
             {children}
             {}
-            <NotificationToast
-                notification={activeToast}
-                onClose={() => setActiveToast(null)}
-                onClick={openFromToast}
-            />
+            {location.pathname !== "/chat" && (
+                <NotificationToast
+                    notification={activeToast}
+                    onClose={() => setActiveToast(null)}
+                    onClick={openFromToast}
+                />
+            )}
         </SocketContext.Provider>
     );
 }

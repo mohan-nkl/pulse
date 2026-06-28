@@ -25,7 +25,7 @@ client.interceptors.response.use(
     (response) => response,
     (error) => {
         const status = error.response?.status;
-        const isAuthCall = (error.config?.url || "").includes("/api/auth/");
+        const isAuthCall = /\/api\/(v1\/)?auth\//.test(error.config?.url || "");
 
         if (status === 401 && !isAuthCall) {
             clearToken();

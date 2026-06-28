@@ -39,3 +39,6 @@ uploads/
 
 # Vite cache
 frontend/.vite/
+
+# Local documentation notes (not for remote)
+docs/
