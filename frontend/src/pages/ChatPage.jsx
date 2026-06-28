@@ -686,7 +686,7 @@ export default function ChatPage() {
             const contactIds = new Set(contactsRef.current.map((c) => c.userId));
             const extras = partners
                 .filter((p) => !contactIds.has(p.userId))
-                .map((p) => ({ userId: p.userId, name: p.phone || "Unknown", avatarUrl: p.avatarUrl }));
+                .map((p) => ({ userId: p.userId, name: p.phone || "", avatarUrl: p.avatarUrl }));
 
             setExtraChats(extras);
             loadPresence(extras.map((e) => e.userId));
@@ -1206,7 +1206,7 @@ export default function ChatPage() {
                                         {(contact.name || "?").charAt(0).toUpperCase()}
                                     </span>
                                 )}
-                                <span style={styles.itemName}>{contact.name || "Unknown"}</span>
+                                <span style={styles.itemName}>{contact.name}</span>
                             </span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
                                 {unread > 0 && <span style={styles.unreadBadge}>{unread}</span>}
@@ -1325,7 +1325,17 @@ export default function ChatPage() {
                                     </button>
                                     {headerMenuOpen && (
                                         <div style={styles.headerMenu}>
-                                            {!contacts.some((c) => c.userId === selected.userId) && (
+                                            {contacts.some((c) => c.userId === selected.userId) ? (
+                                                <button
+                                                    style={styles.headerMenuItem}
+                                                    onClick={() => {
+                                                        setHeaderMenuOpen(false);
+                                                        navigate(`/users/${selected.userId}/profile`);
+                                                    }}
+                                                >
+                                                    View contact
+                                                </button>
+                                            ) : (
                                                 <button
                                                     style={styles.headerMenuItem}
                                                     onClick={openSaveContact}

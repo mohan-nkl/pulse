@@ -176,7 +176,7 @@ export default function Contacts() {
         return new Date(iso).toLocaleDateString();
     };
 
-    const displayName = (c) => c.alias || c.phone || "Unknown";
+    const displayName = (c) => c.alias || c.phone || "";
 
     const openChat = (c) => {
         sessionStorage.setItem("pulse_selected", JSON.stringify({ type: "dm", userId: c.contactId }));

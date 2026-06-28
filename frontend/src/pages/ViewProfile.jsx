@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getUserProfile } from "../api/profileApi";
 import { blockUser, unblockUser, getBlockStatus } from "../api/blockApi";
+import { listContacts, updateAlias } from "../api/contactApi";
 
 export default function ViewProfile() {
     const { userId } = useParams();
@@ -13,6 +14,11 @@ export default function ViewProfile() {
     const [isBlocked, setIsBlocked] = useState(false);
     const [working, setWorking] = useState(false);
 
+    const [contactRecord, setContactRecord] = useState(null);
+    const [editingName, setEditingName] = useState(false);
+    const [aliasInput, setAliasInput] = useState("");
+    const [savingAlias, setSavingAlias] = useState(false);
+
     useEffect(() => {
         getUserProfile(userId)
             .then(setProfile)
@@ -22,7 +28,36 @@ export default function ViewProfile() {
         getBlockStatus(userId)
             .then((r) => setIsBlocked(!!r.blocked))
             .catch(() => setIsBlocked(false));
+
+        listContacts()
+            .then((list) => {
+                const record = (list || []).find((c) => String(c.contactId) === String(userId));
+                setContactRecord(record || null);
+            })
+            .catch(() => setContactRecord(null));
     }, [userId]);
+
+    const startEditName = () => {
+        setAliasInput(contactRecord?.alias || "");
+        setEditingName(true);
+    };
+
+    const saveName = async () => {
+        if (!contactRecord) return;
+        const alias = aliasInput.trim();
+        setSavingAlias(true);
+        try {
+            await updateAlias(contactRecord.id, alias || null);
+            const fresh = await getUserProfile(userId);
+            setProfile(fresh);
+            setContactRecord((record) => (record ? { ...record, alias: alias || null } : record));
+            setEditingName(false);
+        } catch {
+            alert("Could not update the name. Please try again.");
+        } finally {
+            setSavingAlias(false);
+        }
+    };
 
     const toggleBlock = async () => {
         setWorking(true);
@@ -79,7 +114,31 @@ export default function ViewProfile() {
                                 style={styles.avatar}
                             />
                         </div>
-                        <h2 style={styles.heroName}>{profile.name || "Unknown"}</h2>
+                        {editingName ? (
+                            <div style={styles.editNameRow}>
+                                <input
+                                    style={styles.editNameInput}
+                                    value={aliasInput}
+                                    onChange={(e) => setAliasInput(e.target.value)}
+                                    onKeyDown={(e) => e.key === "Enter" && saveName()}
+                                    placeholder="Name (leave empty to use the number)"
+                                    autoFocus
+                                />
+                                <button style={styles.editSaveBtn} className="pulse-btn" onClick={saveName} disabled={savingAlias}>
+                                    {savingAlias ? "…" : "Save"}
+                                </button>
+                                <button style={styles.editCancelBtn} onClick={() => setEditingName(false)}>✕</button>
+                            </div>
+                        ) : (
+                            <h2 style={styles.heroName}>
+                                {profile.name}
+                                {contactRecord && (
+                                    <button style={styles.editNameBtn} className="pulse-edit" onClick={startEditName} title="Edit name">
+                                        ✎
+                                    </button>
+                                )}
+                            </h2>
+                        )}
                         <p style={styles.heroSub}>Last seen {formatLastSeen(profile.lastSeen)}</p>
                     </div>
 
@@ -168,8 +227,25 @@ const styles = {
         boxShadow: "0 6px 20px rgba(0,0,0,0.20)",
     },
     avatar: { width: "104px", height: "104px", borderRadius: "50%", objectFit: "cover", display: "block" },
-    heroName: { fontSize: "22px", fontWeight: 600, color: "var(--c-text)", margin: "14px 0 0" },
+    heroName: { fontSize: "22px", fontWeight: 600, color: "var(--c-text)", margin: "14px 0 0", display: "inline-flex", alignItems: "center", gap: "8px" },
     heroSub: { fontSize: "13px", color: "var(--c-muted)", margin: "4px 0 0" },
+    editNameBtn: {
+        background: "none", border: "none", cursor: "pointer", color: "var(--c-muted)",
+        fontSize: "15px", lineHeight: 1, padding: "2px 4px",
+    },
+    editNameRow: { display: "flex", alignItems: "center", gap: "6px", marginTop: "14px", width: "100%" },
+    editNameInput: {
+        flex: 1, padding: "8px 10px", fontSize: "15px", background: "var(--c-bg)",
+        border: "1px solid var(--c-border2)", borderRadius: "8px", color: "var(--c-text)", outline: "none",
+    },
+    editSaveBtn: {
+        padding: "8px 14px", fontSize: "13px", fontWeight: 600, background: "var(--c-accent)",
+        color: "var(--c-on-accent)", border: "none", borderRadius: "8px", cursor: "pointer",
+    },
+    editCancelBtn: {
+        padding: "8px 10px", fontSize: "13px", background: "transparent", color: "var(--c-muted)",
+        border: "1px solid var(--c-border2)", borderRadius: "8px", cursor: "pointer",
+    },
     detailsSection: { display: "flex", flexDirection: "column" },
     detailRow: {
         display: "flex", justifyContent: "space-between", alignItems: "center",
