@@ -65,7 +65,8 @@ public class ContactService {
     }
 
     private boolean isBlocked(Long ownerId, Contact contact) {
-        return blockService.isBlockedBetween(ownerId, contact.getContact().getId());
+        Long contactUserId = contact.getContact().getId();
+        return blockService.isBlockedBetween(ownerId, contactUserId);
     }
 
     private boolean matchesQuery(Contact contact, String query) {
@@ -224,8 +225,9 @@ public class ContactService {
     }
 
     private void ensureNotAlreadyContact(Long ownerId, Long contactUserId) {
-        boolean alreadyContact =
-                contactRepository.findByOwner_IdAndContact_Id(ownerId, contactUserId).isPresent();
+        Optional<Contact> existingContact =
+                contactRepository.findByOwner_IdAndContact_Id(ownerId, contactUserId);
+        boolean alreadyContact = existingContact.isPresent();
         if (alreadyContact) {
             throw new ApiException(HttpStatus.CONFLICT, "Contact already added.");
         }

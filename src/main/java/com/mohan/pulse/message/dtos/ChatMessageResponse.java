@@ -32,4 +32,8 @@ public class ChatMessageResponse {
 
     private boolean edited;
     private boolean deleted;
+
+    private String callStatus;
+    private String callMediaType;
+    private Integer callDurationSec;
 }

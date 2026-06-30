@@ -32,6 +32,7 @@ export function SocketProvider({ children }) {
         edited: new Set(),
         statusView: new Set(),
         groupAdded: new Set(),
+        call: new Set(),
     });
 
     const openConversationRef = useRef(null);
@@ -119,6 +120,8 @@ export function SocketProvider({ children }) {
             (event) => emit("statusView", event),
 
             (group) => emit("groupAdded", group),
+
+            (signal) => emit("call", signal),
         );
 
         refreshUnreadCounts();

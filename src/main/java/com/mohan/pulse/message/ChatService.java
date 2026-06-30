@@ -238,6 +238,9 @@ public class ChatService {
                 .statusPreview(statusPreview)
                 .edited(saved.isEdited())
                 .deleted(saved.isDeleted())
+                .callStatus(saved.getCallStatus())
+                .callMediaType(saved.getCallMediaType())
+                .callDurationSec(saved.getCallDurationSec())
                 .build();
     }
 
@@ -271,11 +274,11 @@ public class ChatService {
     }
 
     private String notificationNameFor(Long recipientId, User sender) {
-        boolean savedAsContact =
-                contactRepository.findByOwner_IdAndContact_Id(recipientId, sender.getId()).isPresent();
-        if (savedAsContact) {
-            return sender.getName();
-        }
-        return sender.getPhone();
+        return contactRepository.findByOwner_IdAndContact_Id(recipientId, sender.getId())
+                .map(contact -> {
+                    String alias = contact.getAlias();
+                    return (alias != null && !alias.isBlank()) ? alias : sender.getName();
+                })
+                .orElseGet(sender::getPhone);
     }
 }

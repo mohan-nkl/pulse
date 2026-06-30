@@ -285,6 +285,10 @@ public class ConversationService {
 
     private boolean hiddenByBlock(Message message, Long viewerId, boolean directConversation,
                                   Set<Long> deliveredMessageIds, Instant viewerJoinedGroupAt) {
+        if (message.getType() == MessageType.CALL) {
+            return false;
+        }
+
         boolean ownMessage = message.getSender().getId().equals(viewerId);
         boolean deliveredToViewer = deliveredMessageIds.contains(message.getId());
         if (ownMessage || deliveredToViewer) {
@@ -339,6 +343,9 @@ public class ConversationService {
                 .statusPreview(statusPreview)
                 .edited(message.isEdited())
                 .deleted(message.isDeleted())
+                .callStatus(message.getCallStatus())
+                .callMediaType(message.getCallMediaType())
+                .callDurationSec(message.getCallDurationSec())
                 .build();
     }
 

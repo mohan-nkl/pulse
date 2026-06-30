@@ -58,6 +58,15 @@ public class Message {
     @Column(name = "reply_to_status_id")
     private Long replyToStatusId;
 
+    @Column(name = "call_status")
+    private String callStatus;
+
+    @Column(name = "call_media_type")
+    private String callMediaType;
+
+    @Column(name = "call_duration_sec")
+    private Integer callDurationSec;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

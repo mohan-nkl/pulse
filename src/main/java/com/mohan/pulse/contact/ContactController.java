@@ -20,44 +20,66 @@ public class ContactController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<ContactResponse>>> listContacts() {
-        return ResponseEntity.ok(ApiResponse.ok(contactService.listContacts(SecurityUtil.currentUserId())));
+        Long ownerId = SecurityUtil.currentUserId();
+        List<ContactResponse> contacts = contactService.listContacts(ownerId);
+        ApiResponse<List<ContactResponse>> body = ApiResponse.ok(contacts);
+        return ResponseEntity.ok(body);
     }
 
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<ContactResponse>>> searchContacts(@RequestParam String q) {
-        return ResponseEntity.ok(ApiResponse.ok(contactService.searchContacts(SecurityUtil.currentUserId(), q)));
+        Long ownerId = SecurityUtil.currentUserId();
+        List<ContactResponse> matches = contactService.searchContacts(ownerId, q);
+        ApiResponse<List<ContactResponse>> body = ApiResponse.ok(matches);
+        return ResponseEntity.ok(body);
     }
 
     @PostMapping
     public ResponseEntity<ApiResponse<ContactResponse>> addContact(@Valid @RequestBody AddContactRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Contact added.", contactService.addContact(SecurityUtil.currentUserId(), request)));
+        Long ownerId = SecurityUtil.currentUserId();
+        ContactResponse added = contactService.addContact(ownerId, request);
+        ApiResponse<ContactResponse> body = ApiResponse.ok("Contact added.", added);
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
 
     @PostMapping("/sync")
     public ResponseEntity<ApiResponse<List<SyncedUserResponse>>> syncPhones(@Valid @RequestBody SyncRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(contactService.syncPhones(SecurityUtil.currentUserId(), request)));
+        Long ownerId = SecurityUtil.currentUserId();
+        List<SyncedUserResponse> matchedUsers = contactService.syncPhones(ownerId, request);
+        ApiResponse<List<SyncedUserResponse>> body = ApiResponse.ok(matchedUsers);
+        return ResponseEntity.ok(body);
     }
 
     @PatchMapping("/{id}/alias")
     public ResponseEntity<ApiResponse<ContactResponse>> updateAlias(
             @PathVariable Long id, @RequestBody UpdateAliasRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("Alias updated.", contactService.updateAlias(SecurityUtil.currentUserId(), id, request)));
+        Long ownerId = SecurityUtil.currentUserId();
+        ContactResponse updated = contactService.updateAlias(ownerId, id, request);
+        ApiResponse<ContactResponse> body = ApiResponse.ok("Alias updated.", updated);
+        return ResponseEntity.ok(body);
     }
 
     @PostMapping("/user/{userId}")
     public ResponseEntity<ApiResponse<ContactResponse>> addContactByUserId(
             @PathVariable Long userId,
             @RequestBody(required = false) UpdateAliasRequest request) {
-        String alias = (request == null) ? null : request.getAlias();
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Contact added.",
-                        contactService.addContactByUserId(SecurityUtil.currentUserId(), userId, alias)));
+        Long ownerId = SecurityUtil.currentUserId();
+
+        String alias = null;
+        if (request != null) {
+            alias = request.getAlias();
+        }
+
+        ContactResponse added = contactService.addContactByUserId(ownerId, userId, alias);
+        ApiResponse<ContactResponse> body = ApiResponse.ok("Contact added.", added);
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> removeContact(@PathVariable Long id) {
-        contactService.removeContact(SecurityUtil.currentUserId(), id);
-        return ResponseEntity.ok(ApiResponse.ok("Contact removed.", null));
+        Long ownerId = SecurityUtil.currentUserId();
+        contactService.removeContact(ownerId, id);
+        ApiResponse<Void> body = ApiResponse.ok("Contact removed.", null);
+        return ResponseEntity.ok(body);
     }
 }
