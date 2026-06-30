@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../context/NotificationContext";
 import { useSocket } from "../context/SocketContext";
+import { useCall } from "../context/CallContext";
 import NotificationToast from "../components/NotificationToast";
 import client from "../api/client";
 import { uploadMedia, getMessageType } from "../api/mediaApi";
@@ -19,6 +20,7 @@ import { listGroups, getGroupHistory, getGroupMembers } from "../api/groupApi";
 import { blockUser, unblockUser, getBlockStatus } from "../api/blockApi";
 import NewGroupModal from "../components/NewGroupModal";
 import GroupMembersPanel from "../components/GroupMembersPanel";
+import VoiceRecorder from "../components/VoiceRecorder";
 
 const TYPING_THROTTLE_MS = 2000;
 const TYPING_IDLE_MS = 3000;
@@ -95,6 +97,58 @@ function Ticks({ message }) {
     const symbol = isDelivered ? "✓✓" : "✓";
     const color = isRead ? "#5fc8ff" : "rgba(255,255,255,0.95)";
     return <span style={{ color, fontWeight: 700, fontSize: "12.5px", letterSpacing: "-0.5px" }}>{symbol}</span>;
+}
+
+function callDurationText(totalSeconds) {
+    const s = Number(totalSeconds) || 0;
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function CallLogBubble({ message, mine }) {
+    const isVideo = message.callMediaType === "VIDEO";
+    const status = message.callStatus || "MISSED";
+    const missed = status === "MISSED";
+    const declined = status === "DECLINED";
+    const completed = status === "COMPLETED";
+
+    let label;
+    if (declined) {
+        label = isVideo ? "Video call declined" : "Voice call declined";
+    } else if (missed) {
+        label = mine
+            ? "No answer"
+            : (isVideo ? "Missed video call" : "Missed voice call");
+    } else {
+        const dir = mine ? "Outgoing" : "Incoming";
+        label = `${dir} ${isVideo ? "video" : "voice"} call`;
+    }
+
+    const accent = missed || declined ? "#f15c6d" : "var(--c-muted)";
+    const icon = isVideo ? (
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M23 7l-7 5 7 5V7z" />
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+        </svg>
+    ) : (
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
+        </svg>
+    );
+
+    return (
+        <div style={styles.callRow}>
+            <div style={styles.callBubble}>
+                <span style={{ color: accent, display: "inline-flex" }}>{icon}</span>
+                <span style={styles.callLabel}>{label}</span>
+                {completed && message.callDurationSec > 0 && (
+                    <span style={styles.callDuration}>· {callDurationText(message.callDurationSec)}</span>
+                )}
+                <span style={styles.callTime}>{formatTime(message.createdAt)}</span>
+            </div>
+        </div>
+    );
 }
 
 function Lightbox({ url, onClose }) {
@@ -262,6 +316,7 @@ export default function ChatPage() {
     const navigate = useNavigate();
     const { clearConversation, unreadPerConversation } = useNotification();
     const { presence, setPresence, activeToast, setActiveToast, addListener, setOpenConversation } = useSocket();
+    const { startCall } = useCall();
 
     const [contacts, setContacts] = useState([]);
     const [extraChats, setExtraChats] = useState([]);
@@ -386,6 +441,7 @@ export default function ChatPage() {
                 if (type === "dm") {
                     const contact = loadedContacts.find((c) => Number(c.userId) === Number(userId));
                     if (contact) openDirect(contact);
+                    else openDirectById(Number(userId));
                 } else if (type === "group") {
                     const group = loadedGroups.find((g) => Number(g.id) === Number(id));
                     if (group) openGroup(group);
@@ -855,6 +911,35 @@ export default function ChatPage() {
         }
     };
 
+    // Open a direct chat by user id, even when the person isn't a saved
+    // contact (e.g. opening a notification from an unknown sender). Opens
+    // immediately with a best-guess name, then upgrades it from the profile.
+    const openDirectById = async (userId, fallbackName) => {
+        const known =
+            contacts.find((c) => Number(c.userId) === Number(userId)) ||
+            extraChats.find((c) => Number(c.userId) === Number(userId));
+        if (known) {
+            openDirect(known);
+            return;
+        }
+
+        openDirect({ userId: Number(userId), name: fallbackName || `User ${userId}` });
+
+        try {
+            const res = await client.get(`/api/v1/users/${userId}/profile`);
+            const profile = res.data.data;
+            if (profile?.name) {
+                setSelected((prev) =>
+                    prev && prev.type === "dm" && Number(prev.userId) === Number(userId)
+                        ? { ...prev, name: profile.name }
+                        : prev
+                );
+            }
+        } catch {
+            // Keep the fallback name.
+        }
+    };
+
     const openGroup = async (group) => {
         const convId = groupConversationId(group.id);
 
@@ -1047,13 +1132,8 @@ export default function ChatPage() {
         stopTypingNow(openConversationIdRef.current);
     };
 
-    const handleFileSelected = async (event) => {
-        const file = event.target.files[0];
+    const uploadAndSend = async (file, messageType) => {
         if (!file || !selected) return;
-
-        event.target.value = "";
-
-        const messageType = getMessageType(file);
 
         setIsUploading(true);
         try {
@@ -1074,6 +1154,15 @@ export default function ChatPage() {
         }
 
         stopTypingNow(openConversationIdRef.current);
+    };
+
+    const handleFileSelected = async (event) => {
+        const file = event.target.files[0];
+        if (!file || !selected) return;
+
+        event.target.value = "";
+
+        await uploadAndSend(file, getMessageType(file));
     };
 
     const handleGroupCreated = (group) => {
@@ -1315,57 +1404,98 @@ export default function ChatPage() {
                                 </div>
                             )}
                             {selected.type === "dm" && (
-                                <div style={{ position: "relative" }}>
-                                    <button
-                                        style={styles.infoBtn}
-                                        onClick={() => setHeaderMenuOpen((v) => !v)}
-                                        aria-label="Chat options"
-                                    >
-                                        ⋮
-                                    </button>
-                                    {headerMenuOpen && (
-                                        <div style={styles.headerMenu}>
-                                            {contacts.some((c) => c.userId === selected.userId) ? (
-                                                <button
-                                                    style={styles.headerMenuItem}
-                                                    onClick={() => {
-                                                        setHeaderMenuOpen(false);
-                                                        navigate(`/users/${selected.userId}/profile`);
-                                                    }}
-                                                >
-                                                    View contact
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    style={styles.headerMenuItem}
-                                                    onClick={openSaveContact}
-                                                >
-                                                    Save contact
-                                                </button>
-                                            )}
-                                            {isBlocked ? (
-                                                <button
-                                                    style={styles.headerMenuItem}
-                                                    onClick={handleUnblock}
-                                                >
-                                                    Unblock
-                                                </button>
-                                            ) : (
+                                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                                    {!isBlocked && (
+                                        <button
+                                            style={styles.infoBtn}
+                                            onClick={() => {
+                                                const c = contacts.find((x) => x.userId === selected.userId);
+                                                startCall({
+                                                    userId: selected.userId,
+                                                    name: selected.name,
+                                                    avatarUrl: c?.avatarUrl || null,
+                                                });
+                                            }}
+                                            aria-label="Voice call"
+                                            title="Voice call"
+                                        >
+                                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                    {!isBlocked && (
+                                        <button
+                                            style={styles.infoBtn}
+                                            onClick={() => {
+                                                const c = contacts.find((x) => x.userId === selected.userId);
+                                                startCall({
+                                                    userId: selected.userId,
+                                                    name: selected.name,
+                                                    avatarUrl: c?.avatarUrl || null,
+                                                }, "VIDEO");
+                                            }}
+                                            aria-label="Video call"
+                                            title="Video call"
+                                        >
+                                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M23 7l-7 5 7 5V7z" />
+                                                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                    <div style={{ position: "relative" }}>
+                                        <button
+                                            style={styles.infoBtn}
+                                            onClick={() => setHeaderMenuOpen((v) => !v)}
+                                            aria-label="Chat options"
+                                        >
+                                            ⋮
+                                        </button>
+                                        {headerMenuOpen && (
+                                            <div style={styles.headerMenu}>
+                                                {contacts.some((c) => c.userId === selected.userId) ? (
+                                                    <button
+                                                        style={styles.headerMenuItem}
+                                                        onClick={() => {
+                                                            setHeaderMenuOpen(false);
+                                                            navigate(`/users/${selected.userId}/profile`);
+                                                        }}
+                                                    >
+                                                        View contact
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        style={styles.headerMenuItem}
+                                                        onClick={openSaveContact}
+                                                    >
+                                                        Save contact
+                                                    </button>
+                                                )}
+                                                {isBlocked ? (
+                                                    <button
+                                                        style={styles.headerMenuItem}
+                                                        onClick={handleUnblock}
+                                                    >
+                                                        Unblock
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        style={{ ...styles.headerMenuItem, color: "#f15c6d" }}
+                                                        onClick={handleBlock}
+                                                    >
+                                                        Block
+                                                    </button>
+                                                )}
                                                 <button
                                                     style={{ ...styles.headerMenuItem, color: "#f15c6d" }}
-                                                    onClick={handleBlock}
+                                                    onClick={() => handleDeleteConversation({ type: "dm", userId: selected.userId })}
                                                 >
-                                                    Block
+                                                    Delete conversation
                                                 </button>
-                                            )}
-                                            <button
-                                                style={{ ...styles.headerMenuItem, color: "#f15c6d" }}
-                                                onClick={() => handleDeleteConversation({ type: "dm", userId: selected.userId })}
-                                            >
-                                                Delete conversation
-                                            </button>
-                                        </div>
-                                    )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </header>
@@ -1389,6 +1519,9 @@ export default function ChatPage() {
                                 const hovered = hoveredMessageId === message.id;
                                 const menuOpen = menuFor === message.id;
                                 const pickerOpen = emojiPickerFor === message.id;
+                                if (message.type === "CALL") {
+                                    return <CallLogBubble key={message.id} message={message} mine={mine} />;
+                                }
                                 return (
                                     <div
                                         key={message.id}
@@ -1629,6 +1762,13 @@ export default function ChatPage() {
                                     </button>
                                 )}
 
+                                {!editingMessage && (
+                                    <VoiceRecorder
+                                        disabled={isUploading}
+                                        onRecorded={(file) => uploadAndSend(file, "AUDIO")}
+                                    />
+                                )}
+
                                 <input
                                     className="pulse-cinput"
                                     style={styles.input}
@@ -1729,8 +1869,7 @@ export default function ChatPage() {
                     if (conversationId?.startsWith("dm:")) {
                         const parts = conversationId.split(":");
                         const otherId = Number(parts[1]) === currentUserId ? Number(parts[2]) : Number(parts[1]);
-                        const contact = contacts.find((c) => c.userId === otherId);
-                        if (contact) openDirect(contact);
+                        openDirectById(otherId, activeToast?.senderName);
                     } else if (conversationId?.startsWith("group:")) {
                         const groupId = Number(conversationId.split(":")[1]);
                         const group = groups.find((g) => g.id === groupId);
@@ -1981,6 +2120,28 @@ const styles = {
     },
     bubbleMine: { background: "var(--c-outgoing)", color: "var(--c-on-accent)" },
     bubbleTheirs: { background: "var(--c-incoming)", color: "var(--c-text)" },
+    callRow: {
+        display: "flex",
+        justifyContent: "center",
+        alignSelf: "center",
+        width: "100%",
+        margin: "4px 0",
+    },
+    callBubble: {
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "7px",
+        background: "var(--c-incoming)",
+        color: "var(--c-text)",
+        border: "1px solid var(--c-border)",
+        borderRadius: "16px",
+        padding: "6px 12px",
+        fontSize: "13px",
+        maxWidth: "85%",
+    },
+    callLabel: { fontWeight: 500 },
+    callDuration: { color: "var(--c-muted)" },
+    callTime: { color: "var(--c-muted)", fontSize: "11px", marginLeft: "4px" },
     sender: { fontSize: "12px", color: "var(--c-info)", marginBottom: "2px", fontWeight: 600 },
     statusPreview: {
         display: "flex",
@@ -2254,4 +2415,5 @@ const styles = {
 const chatCss = `
 .pulse-csearch:focus, .pulse-cinput:focus { border-color: var(--c-accent) !important; box-shadow: 0 0 0 3px rgba(74,157,137,0.18); }
 .pulse-newgroup:hover, .pulse-send:hover { background: var(--c-accent-hover) !important; }
+@keyframes pulse-rec { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 `;

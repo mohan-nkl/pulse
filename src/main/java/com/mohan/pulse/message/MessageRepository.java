@@ -19,10 +19,16 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
             String conversationId, Long beforeId, Pageable pageable);
 
     @Query("SELECT DISTINCT m.conversationId FROM Message m " +
-           "WHERE m.sender.id = :userId AND m.conversationType = com.mohan.pulse.message.ConversationType.DIRECT")
+            "WHERE m.sender.id = :userId AND m.conversationType = com.mohan.pulse.message.ConversationType.DIRECT")
     List<String> findDirectConversationIdsBySender(@Param("userId") Long userId);
 
     @Query("SELECT m.conversationId, MAX(m.createdAt) FROM Message m " +
-           "WHERE m.conversationId IN :conversationIds GROUP BY m.conversationId")
+            "WHERE m.conversationId IN :conversationIds GROUP BY m.conversationId")
     List<Object[]> findLastMessageTimes(@Param("conversationIds") Collection<String> conversationIds);
+
+    @Query("SELECT m FROM Message m " +
+            "WHERE m.type = com.mohan.pulse.message.MessageType.CALL " +
+            "AND (m.conversationId LIKE :p1 OR m.conversationId LIKE :p2) " +
+            "ORDER BY m.createdAt DESC")
+    List<Message> findCallLogsForUser(@Param("p1") String p1, @Param("p2") String p2);
 }

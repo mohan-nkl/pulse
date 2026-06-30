@@ -6,7 +6,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 let stompClient = null;
 
-export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onReaction, onNotification, onMessageDeleted, onMessageEdited, onStatusView, onGroupAdded) {
+export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onReaction, onNotification, onMessageDeleted, onMessageEdited, onStatusView, onGroupAdded, onCall) {
 
     if (stompClient) {
         stompClient.deactivate();
@@ -91,6 +91,12 @@ export function connectWebSocket(onMessage, onStatus, onPresence, onTyping, onRe
                 }
             });
 
+            stompClient.subscribe("/user/queue/call", (frame) => {
+                if (onCall) {
+                    onCall(JSON.parse(frame.body));
+                }
+            });
+
             sendDelivered(null);
         },
     });
@@ -142,6 +148,17 @@ export function sendTyping(conversationId, typing) {
     stompClient.publish({
         destination: "/app/chat.typing",
         body: JSON.stringify({ conversationId, typing }),
+    });
+}
+
+export function sendCallSignal(signal) {
+    if (!stompClient || !stompClient.connected) {
+        return;
+    }
+
+    stompClient.publish({
+        destination: "/app/call.signal",
+        body: JSON.stringify(signal),
     });
 }
 

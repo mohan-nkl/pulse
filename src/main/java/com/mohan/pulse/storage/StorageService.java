@@ -6,6 +6,7 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class StorageService {
 
@@ -41,7 +43,16 @@ public class StorageService {
         if (key == null || key.isBlank()) {
             return null;
         }
-        return generatePresignedUrl(key);
+        // A presigned URL is best-effort: it's only used to *display* an image.
+        // If storage is unreachable or the key is bad, we must NOT fail the
+        // whole request (a contact list, a conversation, a message) over one
+        // avatar. Degrade to no image; the UI falls back to an initial.
+        try {
+            return generatePresignedUrl(key);
+        } catch (Exception e) {
+            log.warn("Could not generate presigned URL for key '{}': {}", key, e.getMessage());
+            return null;
+        }
     }
 
     private String buildObjectKey(String folder, String originalFilename) {
